@@ -17,7 +17,7 @@
     header h1 { margin: 0; font-size: 2.3rem; color: #ffeb3b; }
     header p { margin: 5px 0 0; font-size: 1rem; color: #bbb; }
     .container {
-      max-width: 900px; margin: 30px auto; padding: 20px;
+      max-width: 1200px; margin: 30px auto; padding: 20px;
       background: rgba(255,255,255,0.05);
       border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
     }
@@ -26,18 +26,21 @@
       padding: 12px; font-size: 1rem;
       border-radius: 6px; border: none; outline: none;
     }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 1rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
     th, td { padding: 12px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); }
     th { background: rgba(0,0,0,0.6); }
     tr:hover { background: rgba(255,255,255,0.1); transition: 0.2s; }
+    .profit-pos { color: #4CAF50; font-weight: bold; }
+    .profit-neg { color: #FF5252; font-weight: bold; }
     .highlight { background: rgba(255,215,0,0.2); font-weight: bold; }
     .refresh-timer { text-align: center; margin-top: 10px; font-size: 1rem; color: #ffeb3b; }
+    td.news { text-align: left; max-width: 300px; font-size: 0.85rem; }
   </style>
 </head>
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Top 10 fast-profit stocks (≤3 months)</p>
+    <p>Top 10 fast-profit stocks (≤3 months, with news trend)</p>
   </header>
 
   <div class="container">
@@ -73,10 +76,10 @@
         const latest = prices[prices.length-1];
         const budget = parseFloat(document.getElementById("budget").value)||1000;
 
-        // Horizons: days → label
+        // Horizons
         const horizons = { "1W":5, "2W":10, "3W":15, "1M":22, "3M":66 };
-        let best={label:"-",val:-Infinity,date:""};
-        
+        let best={label:"-",val:-Infinity,date:"",pct:0};
+
         for (const [label,days] of Object.entries(horizons)) {
           if (prices.length > days) {
             const window = prices.slice(prices.length-days-3, prices.length-days+2).filter(v=>v);
@@ -85,17 +88,33 @@
               if(past>0){
                 const ret=(latest-past)/past;
                 const profit=ret*budget;
-                if (profit>best.val && profit/budget<0.5) { // cap <50% inside 3m
+                if (profit>best.val && ret<0.5) { // cap <50% growth
                   const sellDate = new Date(timestamps[timestamps.length-days]*1000);
-                  best={label,val:profit,date:sellDate.toLocaleDateString()};
+                  best={label,val:profit,date:sellDate.toLocaleDateString(),pct:ret*100};
                 }
               }
             }
           }
         }
 
-        return { symbol, price: latest.toFixed(2), best };
+        const news = await getStockNews(symbol);
+        return { symbol, price: latest.toFixed(2), best, news };
       } catch { return null; }
+    }
+
+    async function getStockNews(symbol){
+      try {
+        const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxyUrl); const wrapped = await res.json();
+        const data = JSON.parse(wrapped.contents);
+        if (data.news && data.news.length>0){
+          return data.news[0].title;
+        }
+        return "No news available.";
+      } catch {
+        return "News unavailable.";
+      }
     }
 
     async function loadStocks() {
@@ -110,16 +129,19 @@
 
     function updateTable() {
       let html = `<table>
-        <tr><th>Rank</th><th>Symbol</th><th>Price</th><th>Potential Profit</th><th>Best Sell</th></tr>`;
+        <tr><th>Rank</th><th>Symbol</th><th>Price</th><th>Potential Profit</th><th>Growth %</th><th>Best Sell</th><th>Trend Summary</th></tr>`;
       stockData.forEach((s,idx)=>{
         const profit = s.best.val>0?`$${s.best.val.toFixed(2)}`:"-";
+        const pct = s.best.label!=="-"?`${s.best.pct.toFixed(1)}%`:"-";
         const sell = s.best.label!=="-" ? `${s.best.label} → ${s.best.date}`:"-";
         html+=`<tr>
           <td>#${idx+1}</td>
           <td>${s.symbol}</td>
           <td>$${s.price}</td>
-          <td class="highlight">${profit}</td>
-          <td>${sell}</td>
+          <td class="${s.best.val>=0?'profit-pos':'profit-neg'}">${profit}</td>
+          <td>${pct}</td>
+          <td class="highlight">${sell}</td>
+          <td class="news">${s.news}</td>
         </tr>`;
       });
       html+="</table>";
@@ -135,4 +157,3 @@
   </script>
 </body>
 </html>
-
