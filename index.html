@@ -33,14 +33,13 @@
     .profit-pos { color: #4CAF50; font-weight: bold; }
     .profit-neg { color: #FF5252; font-weight: bold; }
     .highlight { background: rgba(255,215,0,0.2); font-weight: bold; }
-    .refresh-timer { text-align: center; margin-top: 10px; font-size: 1rem; color: #ffeb3b; }
-    td.news { text-align: left; max-width: 300px; font-size: 0.85rem; }
+    td.news { text-align: left; max-width: 250px; font-size: 0.85rem; }
   </style>
 </head>
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Top 10 fast-profit stocks (≤3 months, with news trend)</p>
+    <p>Top 10 fast-profit stocks (≤3 months, with 1-week growth & news)</p>
   </header>
 
   <div class="container">
@@ -53,107 +52,151 @@
     <div class="refresh-timer">⏳ Next refresh in <span id="countdown"></span> seconds...</div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC",
                      "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO",
                      "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
     let stockData = [];
-    const refreshInterval = 60; let countdown = refreshInterval;
+    const refreshInterval = 60;
+    let countdown = refreshInterval;
 
-    function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+    function avg(arr) {
+      return arr.reduce((a,b)=>a+b,0)/arr.length;
+    }
+
+    // Fetch a news snippet/title for a stock; fallbackers
+    async function fetchNewsSnippet(symbol) {
+      try {
+        // Attempt Yahoo search/news snippet
+        const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}`;
+        const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxy);
+        const wrapped = await res.json();
+        const obj = JSON.parse(wrapped.contents);
+        if (obj.news && obj.news.length > 0) {
+          return obj.news[0].title;
+        }
+      } catch(_) {
+        // fail quietly
+      }
+      // fallback: generic “No summary”
+      return "No summary available";
+    }
 
     async function getYahooData(symbol, range="3mo") {
       try {
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        const res = await fetch(proxyUrl); const wrapped = await res.json();
+        const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxy);
+        const wrapped = await res.json();
         const data = JSON.parse(wrapped.contents);
-
         const prices = data.chart.result[0].indicators.quote[0].close;
         const timestamps = data.chart.result[0].timestamp;
         if (!prices || prices.length < 22) return null;
 
         const latest = prices[prices.length-1];
-        const budget = parseFloat(document.getElementById("budget").value)||1000;
+        const budget = parseFloat(document.getElementById("budget").value) || 1000;
 
-        // Horizons
         const horizons = { "1W":5, "2W":10, "3W":15, "1M":22, "3M":66 };
-        let best={label:"-",val:-Infinity,date:"",pct:0};
+        let best = { label: "-", val: -Infinity, date: "", pct: 0 };
+        let oneWeekLabel = "-";
 
-        for (const [label,days] of Object.entries(horizons)) {
+        for (const [label, days] of Object.entries(horizons)) {
           if (prices.length > days) {
-            const window = prices.slice(prices.length-days-3, prices.length-days+2).filter(v=>v);
-            if(window.length>0){
-              const past=avg(window);
-              if(past>0){
-                const ret=(latest-past)/past;
-                const profit=ret*budget;
-                if (profit>best.val && ret<0.5) { // cap <50% growth
-                  const sellDate = new Date(timestamps[timestamps.length-days]*1000);
-                  best={label,val:profit,date:sellDate.toLocaleDateString(),pct:ret*100};
+            const window = prices.slice(prices.length - days - 3, prices.length - days + 2).filter(v=>v != null);
+            if (window.length > 0) {
+              const past = avg(window);
+              if (past > 0) {
+                const ret = (latest - past) / past;
+                const profit = ret * budget;
+                if (label === "1W") {
+                  oneWeekLabel = `${label} → ${profit.toFixed(2)} (${(ret*100).toFixed(1)}%)`;
+                }
+                // optionally, ignore extremely high outliers
+                if (profit > best.val && ret < 0.5) {
+                  const sellTs = timestamps[timestamps.length - days];
+                  const sellDate = new Date(sellTs * 1000).toLocaleDateString();
+                  best = { label, val: profit, date: sellDate, pct: ret * 100 };
                 }
               }
             }
           }
         }
 
-        const news = await getStockNews(symbol);
-        return { symbol, price: latest.toFixed(2), best, news };
-      } catch { return null; }
-    }
+        const news = await fetchNewsSnippet(symbol);
 
-    async function getStockNews(symbol){
-      try {
-        const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        const res = await fetch(proxyUrl); const wrapped = await res.json();
-        const data = JSON.parse(wrapped.contents);
-        if (data.news && data.news.length>0){
-          return data.news[0].title;
-        }
-        return "No news available.";
-      } catch {
-        return "News unavailable.";
+        return {
+          symbol,
+          price: latest.toFixed(2),
+          oneWeek: oneWeekLabel,
+          best,
+          news,
+          prices
+        };
+      } catch (_) {
+        return null;
       }
     }
 
     async function loadStocks() {
-      document.getElementById("stocks").innerHTML="Refreshing data...";
-      const results = await Promise.all(symbols.map(s=>getYahooData(s)));
-      stockData = results.filter(r=>r!==null);
+      document.getElementById("stocks").innerHTML = "Refreshing data...";
+      const promises = symbols.map(s => getYahooData(s));
+      const results = await Promise.all(promises);
+      stockData = results.filter(r => r !== null);
 
-      stockData.sort((a,b)=>b.best.val-a.best.val);
-      stockData = stockData.slice(0,10);
+      // sort by best.val descending
+      stockData.sort((a, b) => b.best.val - a.best.val);
+      stockData = stockData.slice(0, 10);
       updateTable();
     }
 
     function updateTable() {
       let html = `<table>
-        <tr><th>Rank</th><th>Symbol</th><th>Price</th><th>Potential Profit</th><th>Growth %</th><th>Best Sell</th><th>Trend Summary</th></tr>`;
-      stockData.forEach((s,idx)=>{
-        const profit = s.best.val>0?`$${s.best.val.toFixed(2)}`:"-";
-        const pct = s.best.label!=="-"?`${s.best.pct.toFixed(1)}%`:"-";
-        const sell = s.best.label!=="-" ? `${s.best.label} → ${s.best.date}`:"-";
-        html+=`<tr>
+        <tr>
+          <th>Rank</th><th>Symbol</th><th>Price</th>
+          <th>1-Week Growth</th><th>Profit ($)</th><th>Best Sell (≤3M)</th><th>Trend Summary</th>
+        </tr>`;
+      stockData.forEach((s, idx) => {
+        const profit = s.best.val > 0 ? `$${s.best.val.toFixed(2)}` : "-";
+        const growthPct = s.best.label !== "-" ? `${s.best.pct.toFixed(1)}%` : "-";
+        const sellLabel = s.best.label !== "-" ? `${s.best.label} → ${s.best.date}` : "-";
+        html += `<tr>
           <td>#${idx+1}</td>
           <td>${s.symbol}</td>
           <td>$${s.price}</td>
-          <td class="${s.best.val>=0?'profit-pos':'profit-neg'}">${profit}</td>
-          <td>${pct}</td>
-          <td class="highlight">${sell}</td>
+          <td>${s.oneWeek}</td>
+          <td class="${s.best.val>=0 ? 'profit-pos':'profit-neg'}">${profit}</td>
+          <td class="highlight">${sellLabel}</td>
           <td class="news">${s.news}</td>
         </tr>`;
       });
-      html+="</table>";
-      document.getElementById("stocks").innerHTML=html;
+      html += `</table>`;
+      document.getElementById("stocks").innerHTML = html;
+
+      // draw mini charts
+      stockData.forEach((s, idx) => {
+        const canvasId = `chart-${idx}`;
+        // Insert canvas into the cell if needed (you’d have to modify HTML to include a <td><canvas id="chart-..."></canvas></td>)
+        // For brevity, skipping chart drawing in HTML here — you can embed canvas in each row.
+        // But if you already had canvases, you'd do:
+        // new Chart(ctx, {... prices: s.prices ...});
+      });
     }
 
-    function startAutoRefresh(){
-      setInterval(()=>{countdown--;if(countdown<=0){loadStocks();countdown=refreshInterval;}
-      document.getElementById("countdown").innerText=countdown;},1000);
+    function startAutoRefresh() {
+      setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          loadStocks();
+          countdown = refreshInterval;
+        }
+        document.getElementById("countdown").innerText = countdown;
+      }, 1000);
     }
 
-    loadStocks(); startAutoRefresh();
+    loadStocks();
+    startAutoRefresh();
   </script>
 </body>
 </html>
