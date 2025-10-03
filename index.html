@@ -6,253 +6,198 @@
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, sans-serif;
-      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-      margin: 0; 
-      padding: 0;
-      color: #fff;
+      background: linear-gradient(135deg, #1c1c1c, #0f2027, #203a43);
+      margin: 0; padding: 0; color: #fff;
     }
     header {
-      text-align: center;
-      padding: 30px 20px;
-      background: rgba(0,0,0,0.4);
+      text-align: center; padding: 25px 15px;
+      background: rgba(0,0,0,0.6);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.5);
     }
-    header h1 { margin: 0; font-size: 2.4rem; }
-    header p { margin: 5px 0 0; font-size: 1rem; color: #ddd; }
+    header h1 { margin: 0; font-size: 2.3rem; color: #ffeb3b; }
+    header p { margin: 5px 0 0; font-size: 1rem; color: #bbb; }
+
     .container {
-      max-width: 1250px;
-      margin: 30px auto;
-      padding: 20px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 12px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+      max-width: 1300px;
+      margin: 30px auto; padding: 20px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
     }
     .input-section { text-align: center; margin-bottom: 20px; }
-    input {
-      padding: 10px; width: 200px; font-size: 1rem;
-      border: none; border-radius: 6px; text-align: center; outline: none;
+    input, textarea {
+      padding: 12px; font-size: 1rem;
+      border-radius: 6px; border: none; outline: none;
+      margin: 5px 0;
     }
+    button {
+      padding: 10px 20px; border: none;
+      border-radius: 6px; cursor: pointer;
+      background: #ffeb3b; color: #000;
+      font-weight: bold; transition: 0.2s;
+    }
+    button:hover { background: #ffc107; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
-    th, td {
-      padding: 10px; text-align: center;
-      border-bottom: 1px solid rgba(255,255,255,0.2);
-      vertical-align: middle;
-    }
-    th { background: rgba(0,0,0,0.5); color: #fff; }
+    th, td { padding: 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); }
+    th { background: rgba(0,0,0,0.6); }
     tr:hover { background: rgba(255,255,255,0.1); transition: 0.2s; }
     .growth-pos { color: #4CAF50; font-weight: bold; }
     .growth-neg { color: #FF5252; font-weight: bold; }
     .highlight { background: rgba(255,215,0,0.2); font-weight: bold; }
     canvas { width: 100px !important; height: 40px !important; }
     .refresh-timer { text-align: center; margin-top: 10px; font-size: 1rem; color: #ffeb3b; }
-    /* Toolbox */
-    .tools {
-      margin-top: 30px;
-      padding: 20px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 10px;
+
+    /* Tools UI */
+    .tools { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .tool-card {
+      background: rgba(0,0,0,0.5); padding: 20px;
+      border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    .tools h2 {
-      margin-top: 0; font-size: 1.4rem; color: #ffeb3b;
-    }
-    .tool {
-      margin-bottom: 20px;
-      padding: 15px;
-      background: rgba(0,0,0,0.4);
-      border-radius: 8px;
+    .tool-card h3 { margin-top: 0; color: #ffeb3b; }
+    .result-box {
+      margin-top: 10px; padding: 10px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 6px; min-height: 40px;
     }
   </style>
 </head>
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Track growth, projections, and profit opportunities</p>
+    <p>Profit-focused projections to maximize your sells</p>
   </header>
-  
+
   <div class="container">
     <div class="input-section">
-      <label for="budget">Enter Your Investment ($): </label>
-      <input type="number" id="budget" placeholder="e.g. 5000" oninput="updateTable()">
+      <label for="budget">💰 Investment Budget ($): </label>
+      <input type="number" id="budget" placeholder="5000" oninput="updateTable()">
     </div>
-    
+
     <div id="stocks">Loading...</div>
-    <div class="refresh-timer">Next refresh in <span id="countdown"></span> seconds...</div>
+    <div class="refresh-timer">⏳ Next refresh in <span id="countdown"></span> seconds...</div>
 
-    <!-- Toolbox -->
+    <!-- TOOLBOX -->
     <div class="tools">
-      <h2>🛠 Tools</h2>
-
-      <div class="tool">
+      <div class="tool-card">
         <h3>🔍 Quick Stock Lookup</h3>
-        <input type="text" id="lookupSymbol" placeholder="Enter ticker (e.g. AAPL)">
+        <input type="text" id="lookupSymbol" placeholder="Ticker (e.g. AAPL)">
         <button onclick="lookupStock()">Check</button>
-        <div id="lookupResult"></div>
+        <div id="lookupResult" class="result-box"></div>
       </div>
 
-      <div class="tool">
-        <h3>📈 Market Summary</h3>
-        <div id="marketSummary">Loading indices...</div>
-      </div>
-
-      <div class="tool">
+      <div class="tool-card">
         <h3>📊 Portfolio Simulator</h3>
-        <textarea id="portfolioInput" rows="4" style="width:100%" placeholder="Enter tickers and $ amounts, e.g.:
-AAPL:2000
-TSLA:1500
-MSFT:1500"></textarea>
+        <textarea id="portfolioInput" rows="4" placeholder="AAPL:2000&#10;TSLA:1500&#10;MSFT:1500"></textarea>
         <button onclick="simulatePortfolio()">Simulate</button>
-        <div id="portfolioResult"></div>
+        <div id="portfolioResult" class="result-box"></div>
       </div>
     </div>
   </div>
 
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <script>
-    /* === STOCK MONITOR CORE === */
-    const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC",
-                     "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO",
-                     "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
+    const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC","ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO","PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
     let stockData = [];
-    const refreshInterval = 60; 
-    let countdown = refreshInterval;
+    const refreshInterval = 60; let countdown = refreshInterval;
 
-    async function getYahooData(symbol, range="1mo") {
+    async function getYahooData(symbol, range="1y") {
       try {
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        const res = await fetch(proxyUrl);
-        const wrapped = await res.json();
+        const res = await fetch(proxyUrl); const wrapped = await res.json();
         const data = JSON.parse(wrapped.contents);
 
         const prices = data.chart.result[0].indicators.quote[0].close;
-        if (!prices || prices.length < 10) return null;
+        if (!prices || prices.length < 30) return null;
+
         const latest = prices[prices.length-1];
-        const monthAgo = prices[0];
+        const monthAgo = prices[prices.length-22]; // ~22 trading days
         const oneMonthGrowth = ((latest - monthAgo) / monthAgo) * 100;
 
         // avg weekly growth
         let weeklyReturns = [];
         for (let i=5; i<prices.length; i+=5) {
-          let prev = prices[i-5];
-          let curr = prices[i];
+          let prev = prices[i-5]; let curr = prices[i];
           if (prev && curr) weeklyReturns.push((curr-prev)/prev);
         }
-        const avgWeeklyGrowth = weeklyReturns.reduce((a,b)=>a+b,0) / weeklyReturns.length;
+        const avgWeeklyGrowth = weeklyReturns.reduce((a,b)=>a+b,0)/weeklyReturns.length;
 
         return { symbol, latest: latest.toFixed(2), oneMonthGrowth: oneMonthGrowth.toFixed(2), avgWeeklyGrowth, prices };
-      } catch (e) { console.error("Error fetching", symbol, e); return null; }
+      } catch { return null; }
     }
 
     async function loadStocks() {
       document.getElementById("stocks").innerHTML = "Refreshing data...";
       const results = await Promise.all(symbols.map(s => getYahooData(s)));
-      stockData = results.filter(r => r !== null);
+      stockData = results.filter(r => r!==null);
       stockData.sort((a,b) => b.oneMonthGrowth - a.oneMonthGrowth);
       stockData = stockData.slice(0,20);
       updateTable();
     }
 
     function updateTable() {
-      const budget = parseFloat(document.getElementById("budget").value) || 0;
-
+      const budget = parseFloat(document.getElementById("budget").value)||0;
       let html = `<table>
-                    <tr>
-                      <th>Symbol</th><th>Price</th><th>1-Mo Growth</th>
-                      <th>Shares</th><th>1W Profit</th><th>2W Profit</th><th>3W Profit</th>
-                      <th>Best Sell</th><th>Trend</th>
-                    </tr>`;
-      stockData.forEach((s, index) => {
-        const shares = budget > 0 ? (budget / s.latest).toFixed(2) : "-";
-        let weekProfits = ["-","-","-"]; let bestIdx = -1;
-        if (budget > 0) {
-          for (let w=1; w<=3; w++) {
-            let projValue = budget * Math.pow(1 + s.avgWeeklyGrowth, w);
-            let profit = projValue - budget;
-            weekProfits[w-1] = "$" + profit.toFixed(2);
-          }
-          bestIdx = weekProfits.map((p,i)=>({i,val:parseFloat(p.replace('$',''))}))
-            .reduce((max,cur)=>cur.val>max.val?cur:max,{i:-1,val:-Infinity}).i;
+        <tr><th>Symbol</th><th>Price</th><th>1-Mo Growth</th>
+        <th>Shares</th><th>1W</th><th>2W</th><th>3W</th><th>1M</th><th>3M</th><th>1Y</th>
+        <th>Best Sell</th><th>Trend</th></tr>`;
+      stockData.forEach((s,idx)=>{
+        const shares = budget>0?(budget/s.latest).toFixed(2):"-";
+        let projections=["-","-","-","-","-","-"]; let bestIdx=-1;
+        if(budget>0){
+          [1,2,3,4,12,52].forEach((w,i)=>{
+            let projVal=budget*Math.pow(1+s.avgWeeklyGrowth,w);
+            let profit=projVal-budget; let pct=((profit/budget)*100).toFixed(1);
+            projections[i]=`$${profit.toFixed(2)} (${pct}%)`;
+          });
+          bestIdx=projections.map((p,i)=>({i,val:parseFloat(p)}))
+                   .reduce((max,cur)=>cur.val>max.val?cur:max,{i:-1,val:-Infinity}).i;
         }
-        html += `<tr>
-          <td>${s.symbol}</td>
-          <td>$${s.latest}</td>
-          <td class="${s.oneMonthGrowth >= 0 ? 'growth-pos':'growth-neg'}">${s.oneMonthGrowth}%</td>
+        html+=`<tr>
+          <td>${s.symbol}</td><td>$${s.latest}</td>
+          <td class="${s.oneMonthGrowth>=0?'growth-pos':'growth-neg'}">${s.oneMonthGrowth}%</td>
           <td>${shares}</td>
-          <td class="${bestIdx===0?'highlight':''}">${weekProfits[0]}</td>
-          <td class="${bestIdx===1?'highlight':''}">${weekProfits[1]}</td>
-          <td class="${bestIdx===2?'highlight':''}">${weekProfits[2]}</td>
-          <td>${bestIdx>=0 ? (bestIdx+1)+"W" : "-"}</td>
-          <td><canvas id="chart-${index}"></canvas></td>
-        </tr>`;
+          ${projections.map((p,i)=>`<td class="${bestIdx===i?'highlight':''}">${p}</td>`).join("")}
+          <td>${bestIdx>=0?["1W","2W","3W","1M","3M","1Y"][bestIdx]:"-"}</td>
+          <td><canvas id="chart-${idx}"></canvas></td></tr>`;
       });
-      html += `</table>`;
-      document.getElementById("stocks").innerHTML = html;
+      html+="</table>";
+      document.getElementById("stocks").innerHTML=html;
 
-      stockData.forEach((s, index) => {
-        const ctx = document.getElementById(`chart-${index}`);
-        new Chart(ctx, {
-          type: 'line',
-          data: { labels: s.prices.map((_,i)=>i+1),
-            datasets: [{ data: s.prices, borderColor: s.oneMonthGrowth>=0?"#4CAF50":"#FF5252",
-              backgroundColor:"transparent", tension:0.3, borderWidth:2, pointRadius:0 }]
-          },
-          options: { responsive:false, plugins:{ legend:{display:false}}, scales:{ x:{display:false}, y:{display:false}} }
-        });
+      stockData.forEach((s,idx)=>{
+        const ctx=document.getElementById(`chart-${idx}`);
+        new Chart(ctx,{type:'line',data:{labels:s.prices.map((_,i)=>i+1),
+          datasets:[{data:s.prices,borderColor:"#4CAF50",backgroundColor:"transparent",tension:0.3,borderWidth:2,pointRadius:0}]},
+          options:{responsive:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}});
       });
     }
 
-    function startAutoRefresh() {
-      setInterval(() => {
-        countdown--;
-        if (countdown <= 0) { loadStocks(); countdown = refreshInterval; }
-        document.getElementById("countdown").innerText = countdown;
-      }, 1000);
+    function startAutoRefresh(){
+      setInterval(()=>{countdown--;if(countdown<=0){loadStocks();countdown=refreshInterval;}
+      document.getElementById("countdown").innerText=countdown;},1000);
     }
 
-    /* === TOOLS === */
-    async function lookupStock() {
-      const symbol = document.getElementById("lookupSymbol").value.toUpperCase();
-      const data = await getYahooData(symbol, "1mo");
-      if (!data) return document.getElementById("lookupResult").innerText = "Not found.";
-      document.getElementById("lookupResult").innerHTML = 
-        `${symbol}: $${data.latest} (1-mo ${data.oneMonthGrowth}%)`;
+    async function lookupStock(){
+      const symbol=document.getElementById("lookupSymbol").value.toUpperCase();
+      const data=await getYahooData(symbol,"1mo");
+      document.getElementById("lookupResult").innerHTML=data?`${symbol}: $${data.latest} (1-mo ${data.oneMonthGrowth}%)`:"Not found";
     }
 
-    async function loadMarketSummary() {
-      const indices = { "^GSPC":"S&P 500", "^IXIC":"NASDAQ", "^DJI":"Dow Jones" };
-      let out = "<ul>";
-      for (const [sym,name] of Object.entries(indices)) {
-        const data = await getYahooData(sym,"5d");
-        if (data) out += `<li>${name}: $${data.latest} (${data.oneMonthGrowth}%)</li>`;
+    async function simulatePortfolio(){
+      const input=document.getElementById("portfolioInput").value.trim().split("\n");
+      let total=0,proj=0,out="<ul>";
+      for(let line of input){
+        const[sym,amtStr]=line.split(":"); const amt=parseFloat(amtStr);
+        if(!sym||isNaN(amt))continue;
+        const data=await getYahooData(sym.trim(),"1mo"); if(!data)continue;
+        total+=amt; const projVal=amt*(1+data.avgWeeklyGrowth*4); // 1M proj
+        proj+=projVal; out+=`<li>${sym.trim()}: Invest $${amt} → 1M ≈ $${projVal.toFixed(2)}</li>`;
       }
-      out += "</ul>";
-      document.getElementById("marketSummary").innerHTML = out;
+      out+=`</ul><b>Total:</b> $${total} → <b>Projected 1M:</b> $${proj.toFixed(2)}`;
+      document.getElementById("portfolioResult").innerHTML=out;
     }
 
-    async function simulatePortfolio() {
-      const input = document.getElementById("portfolioInput").value.trim().split("\n");
-      let total = 0, proj = 0;
-      let result = "<ul>";
-      for (let line of input) {
-        const [sym, amtStr] = line.split(":");
-        const amt = parseFloat(amtStr);
-        if (!sym || isNaN(amt)) continue;
-        const data = await getYahooData(sym.trim(),"1mo");
-        if (!data) continue;
-        total += amt;
-        const projVal = amt * (1 + data.avgWeeklyGrowth);
-        proj += projVal;
-        result += `<li>${sym.trim()}: Invest $${amt} → Next week ≈ $${projVal.toFixed(2)}</li>`;
-      }
-      result += `</ul><b>Total Invested:</b> $${total} → <b>Projected Next Week:</b> $${proj.toFixed(2)}`;
-      document.getElementById("portfolioResult").innerHTML = result;
-    }
-
-    /* === INIT === */
-    loadStocks();
-    startAutoRefresh();
-    loadMarketSummary();
+    loadStocks(); startAutoRefresh();
   </script>
 </body>
 </html>
