@@ -40,7 +40,7 @@
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Top 10 fast-profit stocks (real trend projections, ≤3 months)</p>
+    <p>Top 10 fast-profit stocks (rolling trend projection ≤3 months)</p>
   </header>
 
   <div class="container">
@@ -75,8 +75,9 @@
         const monthAgo = prices[prices.length-22];
         const oneMonthGrowth = ((latest - monthAgo) / monthAgo) * 100;
 
-        // Compute rolling trend returns
         const budget = parseFloat(document.getElementById("budget").value)||1000;
+
+        // Direct returns from actual past data
         const horizons = { "1W":5, "2W":10, "3W":15, "1M":22, "3M":66 };
         let best={label:"-",val:-Infinity};
         let nextWeek="-";
@@ -85,15 +86,18 @@
           if (prices.length > days) {
             const past=prices[prices.length-days-1];
             if(past){
-              const proj=(latest/past-1)*budget; // simulate % move
-              if(label==="1W") nextWeek=`$${proj.toFixed(2)} (${((proj/budget)*100).toFixed(1)}%)`;
-              if(proj>best.val) best={label,val:proj};
+              const ret = (latest - past)/past; // real return %
+              const profit = ret * budget;
+              if(label==="1W") nextWeek=`$${profit.toFixed(2)} (${(ret*100).toFixed(1)}%)`;
+              if(profit>best.val) best={label,val:profit,pct:(ret*100)};
             }
           }
         }
 
-        return { symbol, latest: latest.toFixed(2), oneMonthGrowth: oneMonthGrowth.toFixed(2),
-                 bestSell: best.label, bestProfit: best.val, nextWeek, prices };
+        return { symbol, latest: latest.toFixed(2),
+                 oneMonthGrowth: oneMonthGrowth.toFixed(2),
+                 bestSell: best.label, bestProfit: best.val, bestPct: best.pct,
+                 nextWeek, prices };
       } catch { return null; }
     }
 
@@ -102,7 +106,7 @@
       const results = await Promise.all(symbols.map(s=>getYahooData(s)));
       stockData = results.filter(r=>r!==null);
 
-      // Rank top 10 by best short-term profit
+      // Rank by best real short-term profit
       stockData.sort((a,b)=>b.bestProfit-a.bestProfit);
       stockData = stockData.slice(0,10);
       updateTable();
@@ -112,10 +116,10 @@
       const budget=parseFloat(document.getElementById("budget").value)||0;
       let html = `<table>
         <tr><th>Rank</th><th>Symbol</th><th>Price</th><th>1-Mo Growth</th>
-        <th>Shares</th><th>Next Week Profit</th><th>Best Sell (<=3M)</th><th>Trend</th></tr>`;
+        <th>Shares</th><th>Next Week Profit</th><th>Best Sell (≤3M)</th><th>Trend</th></tr>`;
       stockData.forEach((s,idx)=>{
         const shares=budget>0?(budget/s.latest).toFixed(2):"-";
-        const best = s.bestSell!=="-" ? `${s.bestSell}: $${s.bestProfit.toFixed(2)} (${((s.bestProfit/budget)*100).toFixed(1)}%)` : "-";
+        const best = s.bestSell!=="-" ? `${s.bestSell}: $${s.bestProfit.toFixed(2)} (${s.bestPct.toFixed(1)}%)` : "-";
         html+=`<tr>
           <td>#${idx+1}</td>
           <td>${s.symbol}</td>
