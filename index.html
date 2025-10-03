@@ -16,27 +16,16 @@
     }
     header h1 { margin: 0; font-size: 2.3rem; color: #ffeb3b; }
     header p { margin: 5px 0 0; font-size: 1rem; color: #bbb; }
-
     .container {
-      max-width: 1300px;
-      margin: 30px auto; padding: 20px;
+      max-width: 1100px; margin: 30px auto; padding: 20px;
       background: rgba(255,255,255,0.05);
-      border-radius: 15px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+      border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
     }
     .input-section { text-align: center; margin-bottom: 20px; }
-    input, textarea {
+    input {
       padding: 12px; font-size: 1rem;
       border-radius: 6px; border: none; outline: none;
-      margin: 5px 0;
     }
-    button {
-      padding: 10px 20px; border: none;
-      border-radius: 6px; cursor: pointer;
-      background: #ffeb3b; color: #000;
-      font-weight: bold; transition: 0.2s;
-    }
-    button:hover { background: #ffc107; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
     th, td { padding: 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); }
     th { background: rgba(0,0,0,0.6); }
@@ -47,13 +36,21 @@
     canvas { width: 100px !important; height: 40px !important; }
     .refresh-timer { text-align: center; margin-top: 10px; font-size: 1rem; color: #ffeb3b; }
 
-    /* Tools UI */
-    .tools { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    /* Tools */
+    .tools { margin-top: 30px; display: flex; gap: 20px; flex-wrap: wrap; }
     .tool-card {
+      flex: 1; min-width: 300px;
       background: rgba(0,0,0,0.5); padding: 20px;
       border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     .tool-card h3 { margin-top: 0; color: #ffeb3b; }
+    textarea { width: 100%; border-radius: 6px; border: none; padding: 10px; }
+    button {
+      padding: 10px 20px; border: none; border-radius: 6px;
+      cursor: pointer; background: #ffeb3b; color: #000;
+      font-weight: bold; transition: 0.2s; margin-top: 5px;
+    }
+    button:hover { background: #ffc107; }
     .result-box {
       margin-top: 10px; padding: 10px;
       background: rgba(255,255,255,0.1);
@@ -64,7 +61,7 @@
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Profit-focused projections to maximize your sells</p>
+    <p>Short-term next week vs. best long-term sell</p>
   </header>
 
   <div class="container">
@@ -76,7 +73,7 @@
     <div id="stocks">Loading...</div>
     <div class="refresh-timer">⏳ Next refresh in <span id="countdown"></span> seconds...</div>
 
-    <!-- TOOLBOX -->
+    <!-- Toolbox -->
     <div class="tools">
       <div class="tool-card">
         <h3>🔍 Quick Stock Lookup</h3>
@@ -111,10 +108,9 @@
         if (!prices || prices.length < 30) return null;
 
         const latest = prices[prices.length-1];
-        const monthAgo = prices[prices.length-22]; // ~22 trading days
+        const monthAgo = prices[prices.length-22]; 
         const oneMonthGrowth = ((latest - monthAgo) / monthAgo) * 100;
 
-        // avg weekly growth
         let weeklyReturns = [];
         for (let i=5; i<prices.length; i+=5) {
           let prev = prices[i-5]; let curr = prices[i];
@@ -137,29 +133,36 @@
 
     function updateTable() {
       const budget = parseFloat(document.getElementById("budget").value)||0;
+
       let html = `<table>
         <tr><th>Symbol</th><th>Price</th><th>1-Mo Growth</th>
-        <th>Shares</th><th>1W</th><th>2W</th><th>3W</th><th>1M</th><th>3M</th><th>1Y</th>
-        <th>Best Sell</th><th>Trend</th></tr>`;
+        <th>Shares</th><th>Next Week Profit</th><th>Best Sell (1M/3M/1Y)</th><th>Trend</th></tr>`;
       stockData.forEach((s,idx)=>{
         const shares = budget>0?(budget/s.latest).toFixed(2):"-";
-        let projections=["-","-","-","-","-","-"]; let bestIdx=-1;
+        let nextWeek="-", bestSell="-";
         if(budget>0){
-          [1,2,3,4,12,52].forEach((w,i)=>{
-            let projVal=budget*Math.pow(1+s.avgWeeklyGrowth,w);
-            let profit=projVal-budget; let pct=((profit/budget)*100).toFixed(1);
-            projections[i]=`$${profit.toFixed(2)} (${pct}%)`;
-          });
-          bestIdx=projections.map((p,i)=>({i,val:parseFloat(p)}))
-                   .reduce((max,cur)=>cur.val>max.val?cur:max,{i:-1,val:-Infinity}).i;
+          const oneW = budget*Math.pow(1+s.avgWeeklyGrowth,1) - budget;
+          nextWeek=`$${oneW.toFixed(2)} (${((oneW/budget)*100).toFixed(1)}%)`;
+
+          // Check 1M, 3M, 1Y
+          const options = { "1M":4, "3M":12, "1Y":52 };
+          let best = {label:"-",val:-Infinity};
+          for(const [label,weeks] of Object.entries(options)){
+            let proj=budget*Math.pow(1+s.avgWeeklyGrowth,weeks)-budget;
+            if(proj>best.val){ best={label,val:proj}; }
+          }
+          bestSell=`${best.label}: $${best.val.toFixed(2)} (${((best.val/budget)*100).toFixed(1)}%)`;
         }
+
         html+=`<tr>
-          <td>${s.symbol}</td><td>$${s.latest}</td>
+          <td>${s.symbol}</td>
+          <td>$${s.latest}</td>
           <td class="${s.oneMonthGrowth>=0?'growth-pos':'growth-neg'}">${s.oneMonthGrowth}%</td>
           <td>${shares}</td>
-          ${projections.map((p,i)=>`<td class="${bestIdx===i?'highlight':''}">${p}</td>`).join("")}
-          <td>${bestIdx>=0?["1W","2W","3W","1M","3M","1Y"][bestIdx]:"-"}</td>
-          <td><canvas id="chart-${idx}"></canvas></td></tr>`;
+          <td>${nextWeek}</td>
+          <td class="highlight">${bestSell}</td>
+          <td><canvas id="chart-${idx}"></canvas></td>
+        </tr>`;
       });
       html+="</table>";
       document.getElementById("stocks").innerHTML=html;
@@ -191,7 +194,7 @@
         if(!sym||isNaN(amt))continue;
         const data=await getYahooData(sym.trim(),"1mo"); if(!data)continue;
         total+=amt; const projVal=amt*(1+data.avgWeeklyGrowth*4); // 1M proj
-        proj+=projVal; out+=`<li>${sym.trim()}: Invest $${amt} → 1M ≈ $${projVal.toFixed(2)}</li>`;
+        proj+=projVal; out+=`<li>${sym.trim()}: $${amt} → 1M ≈ $${projVal.toFixed(2)}</li>`;
       }
       out+=`</ul><b>Total:</b> $${total} → <b>Projected 1M:</b> $${proj.toFixed(2)}`;
       document.getElementById("portfolioResult").innerHTML=out;
