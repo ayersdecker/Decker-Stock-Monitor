@@ -35,33 +35,12 @@
     .highlight { background: rgba(255,215,0,0.2); font-weight: bold; }
     canvas { width: 100px !important; height: 40px !important; }
     .refresh-timer { text-align: center; margin-top: 10px; font-size: 1rem; color: #ffeb3b; }
-
-    /* Tools */
-    .tools { margin-top: 30px; display: flex; gap: 20px; flex-wrap: wrap; }
-    .tool-card {
-      flex: 1; min-width: 300px;
-      background: rgba(0,0,0,0.5); padding: 20px;
-      border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    .tool-card h3 { margin-top: 0; color: #ffeb3b; }
-    textarea { width: 100%; border-radius: 6px; border: none; padding: 10px; }
-    button {
-      padding: 10px 20px; border: none; border-radius: 6px;
-      cursor: pointer; background: #ffeb3b; color: #000;
-      font-weight: bold; transition: 0.2s; margin-top: 5px;
-    }
-    button:hover { background: #ffc107; }
-    .result-box {
-      margin-top: 10px; padding: 10px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 6px; min-height: 40px;
-    }
   </style>
 </head>
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Top 10 fast-profit stocks (best sell within 3 months)</p>
+    <p>Top 10 fast-profit stocks (real trend projections, ≤3 months)</p>
   </header>
 
   <div class="container">
@@ -72,32 +51,17 @@
 
     <div id="stocks">Loading...</div>
     <div class="refresh-timer">⏳ Next refresh in <span id="countdown"></span> seconds...</div>
-
-    <!-- Toolbox -->
-    <div class="tools">
-      <div class="tool-card">
-        <h3>🔍 Quick Stock Lookup</h3>
-        <input type="text" id="lookupSymbol" placeholder="Ticker (e.g. AAPL)">
-        <button onclick="lookupStock()">Check</button>
-        <div id="lookupResult" class="result-box"></div>
-      </div>
-
-      <div class="tool-card">
-        <h3>📊 Portfolio Simulator</h3>
-        <textarea id="portfolioInput" rows="4" placeholder="AAPL:2000&#10;TSLA:1500&#10;MSFT:1500"></textarea>
-        <button onclick="simulatePortfolio()">Simulate</button>
-        <div id="portfolioResult" class="result-box"></div>
-      </div>
-    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC","ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO","PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
+    const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC",
+                     "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO",
+                     "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
     let stockData = [];
     const refreshInterval = 60; let countdown = refreshInterval;
 
-    async function getYahooData(symbol, range="1y") {
+    async function getYahooData(symbol, range="3mo") {
       try {
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
@@ -105,44 +69,42 @@
         const data = JSON.parse(wrapped.contents);
 
         const prices = data.chart.result[0].indicators.quote[0].close;
-        if (!prices || prices.length < 30) return null;
+        if (!prices || prices.length < 22) return null;
 
         const latest = prices[prices.length-1];
-        const monthAgo = prices[prices.length-22]; 
+        const monthAgo = prices[prices.length-22];
         const oneMonthGrowth = ((latest - monthAgo) / monthAgo) * 100;
 
-        let weeklyReturns = [];
-        for (let i=5; i<prices.length; i+=5) {
-          let prev = prices[i-5]; let curr = prices[i];
-          if (prev && curr) weeklyReturns.push((curr-prev)/prev);
-        }
-        const avgWeeklyGrowth = weeklyReturns.reduce((a,b)=>a+b,0)/weeklyReturns.length;
+        // Compute rolling trend returns
+        const budget = parseFloat(document.getElementById("budget").value)||1000;
+        const horizons = { "1W":5, "2W":10, "3W":15, "1M":22, "3M":66 };
+        let best={label:"-",val:-Infinity};
+        let nextWeek="-";
 
-        return { symbol, latest: latest.toFixed(2), oneMonthGrowth: oneMonthGrowth.toFixed(2), avgWeeklyGrowth, prices };
+        for (const [label,days] of Object.entries(horizons)) {
+          if (prices.length > days) {
+            const past=prices[prices.length-days-1];
+            if(past){
+              const proj=(latest/past-1)*budget; // simulate % move
+              if(label==="1W") nextWeek=`$${proj.toFixed(2)} (${((proj/budget)*100).toFixed(1)}%)`;
+              if(proj>best.val) best={label,val:proj};
+            }
+          }
+        }
+
+        return { symbol, latest: latest.toFixed(2), oneMonthGrowth: oneMonthGrowth.toFixed(2),
+                 bestSell: best.label, bestProfit: best.val, nextWeek, prices };
       } catch { return null; }
     }
 
     async function loadStocks() {
-      document.getElementById("stocks").innerHTML = "Refreshing data...";
-      const results = await Promise.all(symbols.map(s => getYahooData(s)));
-      stockData = results.filter(r => r!==null);
+      document.getElementById("stocks").innerHTML="Refreshing data...";
+      const results = await Promise.all(symbols.map(s=>getYahooData(s)));
+      stockData = results.filter(r=>r!==null);
 
-      // For each stock, calculate best short-term profit (<=3 months)
-      stockData.forEach(s=>{
-        const budget=parseFloat(document.getElementById("budget").value)||1000; // fallback test budget
-        let best={label:"-",val:-Infinity};
-        const horizons={ "1W":1,"2W":2,"3W":3,"1M":4,"3M":12 };
-        for(const [label,weeks] of Object.entries(horizons)){
-          let proj=budget*Math.pow(1+s.avgWeeklyGrowth,weeks)-budget;
-          if(proj>best.val){ best={label,val:proj}; }
-        }
-        s.bestProfit=best.val; s.bestSell=best.label;
-        s.nextWeekProfit=budget*(Math.pow(1+s.avgWeeklyGrowth,1)-1);
-      });
-
-      // Sort by best short-term profit
+      // Rank top 10 by best short-term profit
       stockData.sort((a,b)=>b.bestProfit-a.bestProfit);
-      stockData = stockData.slice(0,10); // top 10
+      stockData = stockData.slice(0,10);
       updateTable();
     }
 
@@ -153,15 +115,14 @@
         <th>Shares</th><th>Next Week Profit</th><th>Best Sell (<=3M)</th><th>Trend</th></tr>`;
       stockData.forEach((s,idx)=>{
         const shares=budget>0?(budget/s.latest).toFixed(2):"-";
-        const nw=`$${s.nextWeekProfit.toFixed(2)} (${((s.nextWeekProfit/budget)*100).toFixed(1)}%)`;
-        const best=`${s.bestSell}: $${s.bestProfit.toFixed(2)} (${((s.bestProfit/budget)*100).toFixed(1)}%)`;
+        const best = s.bestSell!=="-" ? `${s.bestSell}: $${s.bestProfit.toFixed(2)} (${((s.bestProfit/budget)*100).toFixed(1)}%)` : "-";
         html+=`<tr>
           <td>#${idx+1}</td>
           <td>${s.symbol}</td>
           <td>$${s.latest}</td>
           <td class="${s.oneMonthGrowth>=0?'growth-pos':'growth-neg'}">${s.oneMonthGrowth}%</td>
           <td>${shares}</td>
-          <td>${nw}</td>
+          <td>${s.nextWeek}</td>
           <td class="highlight">${best}</td>
           <td><canvas id="chart-${idx}"></canvas></td>
         </tr>`;
@@ -181,26 +142,6 @@
     function startAutoRefresh(){
       setInterval(()=>{countdown--;if(countdown<=0){loadStocks();countdown=refreshInterval;}
       document.getElementById("countdown").innerText=countdown;},1000);
-    }
-
-    async function lookupStock(){
-      const symbol=document.getElementById("lookupSymbol").value.toUpperCase();
-      const data=await getYahooData(symbol,"1mo");
-      document.getElementById("lookupResult").innerHTML=data?`${symbol}: $${data.latest} (1-mo ${data.oneMonthGrowth}%)`:"Not found";
-    }
-
-    async function simulatePortfolio(){
-      const input=document.getElementById("portfolioInput").value.trim().split("\n");
-      let total=0,proj=0,out="<ul>";
-      for(let line of input){
-        const[sym,amtStr]=line.split(":"); const amt=parseFloat(amtStr);
-        if(!sym||isNaN(amt))continue;
-        const data=await getYahooData(sym.trim(),"1mo"); if(!data)continue;
-        total+=amt; const projVal=amt*(1+data.avgWeeklyGrowth*4); 
-        proj+=projVal; out+=`<li>${sym.trim()}: $${amt} → 1M ≈ $${projVal.toFixed(2)}</li>`;
-      }
-      out+=`</ul><b>Total:</b> $${total} → <b>Projected 1M:</b> $${proj.toFixed(2)}`;
-      document.getElementById("portfolioResult").innerHTML=out;
     }
 
     loadStocks(); startAutoRefresh();
