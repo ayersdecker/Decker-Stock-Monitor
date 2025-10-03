@@ -14,7 +14,7 @@
     header p{margin:6px 0 0;color:#aaa}
     .container{max-width:1500px;margin:26px auto;padding:18px;background:var(--panel);border-radius:10px;box-shadow:0 0 20px rgba(0,255,153,.15)}
     
-    /* controls fixed */
+    /* controls */
     .controls{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
     .ctrl{flex:1 1 220px;display:flex;flex-direction:column;gap:6px}
     
@@ -81,7 +81,7 @@
 
     <!-- Holdings editor -->
     <div class="pill">
-      <strong>📦 Holdings Editor:</strong> set your <em>Shares</em> and <em>Buy Price</em> per symbol to get real PROFIT ($).
+      <strong>📦 Holdings Editor:</strong> set your <em>Shares</em> and <em>Buy Price</em> per symbol to override budget-based simulation.
       <div id="holdingsRow" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
     </div>
 
@@ -90,19 +90,19 @@
       <table id="stocksTable">
         <thead>
           <tr>
-            <th data-col="rank">Rank</th>
-            <th data-col="symbol">Symbol</th>
-            <th data-col="name">Company</th>
-            <th data-col="price">Price</th>
-            <th data-col="g1">1D</th>
-            <th data-col="g5">1W</th>
-            <th data-col="g22">1M</th>
-            <th data-col="g66">3M</th>
-            <th data-col="profit">PROFIT ($)</th>
-            <th data-col="bestSell">Best Sell</th>
-            <th data-col="volume">Volume</th>
-            <th data-col="mcap">Mkt Cap</th>
-            <th data-col="news">Trend Summary</th>
+            <th>Rank</th>
+            <th>Symbol</th>
+            <th>Company</th>
+            <th>Price</th>
+            <th>1D</th>
+            <th>1W</th>
+            <th>1M</th>
+            <th>3M</th>
+            <th>PROFIT ($)</th>
+            <th>Best Sell</th>
+            <th>Volume</th>
+            <th>Mkt Cap</th>
+            <th>Trend Summary</th>
             <th>Chart</th>
             <th>Remove</th>
           </tr>
@@ -157,8 +157,18 @@
 
     function profitFromHoldings(sym,price){
       const h=holdings[sym];
+      // manual holdings override
       if(h && h.shares && h.buy){
         return h.shares*(price-h.buy);
+      }
+      // budget simulation
+      const budget=totalBudget();
+      if(budget>0 && rowsCache.length>0){
+        const perSymbol=budget/symbols.length;
+        if(!holdings[sym]) holdings[sym]={};
+        if(!holdings[sym].buyInit){ holdings[sym].buyInit=price; } // snapshot buy baseline
+        const shares=perSymbol/holdings[sym].buyInit;
+        return shares*(price-holdings[sym].buyInit);
       }
       return 0;
     }
@@ -236,7 +246,10 @@
     $("#addBtn").onclick=()=>{const s=$("#addSymbol").value.trim().toUpperCase();if(s&&!symbols.includes(s)){symbols.push(s);saveState();loadAll();}$("#addSymbol").value="";};
     $("#refreshBtn").onclick=()=>{countdown=60;loadAll();};
     $("#filter").oninput=()=>{updateTable();};
-    $("#budget").oninput=()=>{updateTable();};
+    $("#budget").oninput=()=>{
+      symbols.forEach(sym=>{ if(holdings[sym]) delete holdings[sym].buyInit; });
+      updateTable();
+    };
     setInterval(()=>{countdown--;if(countdown<=0){countdown=60;loadAll();}$("#countdown").textContent=countdown;},1000);
 
     loadAll();
