@@ -61,7 +61,7 @@
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Short-term next week vs. best long-term sell</p>
+    <p>Top 10 fast-profit stocks (best sell within 3 months)</p>
   </header>
 
   <div class="container">
@@ -126,41 +126,43 @@
       document.getElementById("stocks").innerHTML = "Refreshing data...";
       const results = await Promise.all(symbols.map(s => getYahooData(s)));
       stockData = results.filter(r => r!==null);
-      stockData.sort((a,b) => b.oneMonthGrowth - a.oneMonthGrowth);
-      stockData = stockData.slice(0,20);
+
+      // For each stock, calculate best short-term profit (<=3 months)
+      stockData.forEach(s=>{
+        const budget=parseFloat(document.getElementById("budget").value)||1000; // fallback test budget
+        let best={label:"-",val:-Infinity};
+        const horizons={ "1W":1,"2W":2,"3W":3,"1M":4,"3M":12 };
+        for(const [label,weeks] of Object.entries(horizons)){
+          let proj=budget*Math.pow(1+s.avgWeeklyGrowth,weeks)-budget;
+          if(proj>best.val){ best={label,val:proj}; }
+        }
+        s.bestProfit=best.val; s.bestSell=best.label;
+        s.nextWeekProfit=budget*(Math.pow(1+s.avgWeeklyGrowth,1)-1);
+      });
+
+      // Sort by best short-term profit
+      stockData.sort((a,b)=>b.bestProfit-a.bestProfit);
+      stockData = stockData.slice(0,10); // top 10
       updateTable();
     }
 
     function updateTable() {
-      const budget = parseFloat(document.getElementById("budget").value)||0;
-
+      const budget=parseFloat(document.getElementById("budget").value)||0;
       let html = `<table>
-        <tr><th>Symbol</th><th>Price</th><th>1-Mo Growth</th>
-        <th>Shares</th><th>Next Week Profit</th><th>Best Sell (1M/3M/1Y)</th><th>Trend</th></tr>`;
+        <tr><th>Rank</th><th>Symbol</th><th>Price</th><th>1-Mo Growth</th>
+        <th>Shares</th><th>Next Week Profit</th><th>Best Sell (<=3M)</th><th>Trend</th></tr>`;
       stockData.forEach((s,idx)=>{
-        const shares = budget>0?(budget/s.latest).toFixed(2):"-";
-        let nextWeek="-", bestSell="-";
-        if(budget>0){
-          const oneW = budget*Math.pow(1+s.avgWeeklyGrowth,1) - budget;
-          nextWeek=`$${oneW.toFixed(2)} (${((oneW/budget)*100).toFixed(1)}%)`;
-
-          // Check 1M, 3M, 1Y
-          const options = { "1M":4, "3M":12, "1Y":52 };
-          let best = {label:"-",val:-Infinity};
-          for(const [label,weeks] of Object.entries(options)){
-            let proj=budget*Math.pow(1+s.avgWeeklyGrowth,weeks)-budget;
-            if(proj>best.val){ best={label,val:proj}; }
-          }
-          bestSell=`${best.label}: $${best.val.toFixed(2)} (${((best.val/budget)*100).toFixed(1)}%)`;
-        }
-
+        const shares=budget>0?(budget/s.latest).toFixed(2):"-";
+        const nw=`$${s.nextWeekProfit.toFixed(2)} (${((s.nextWeekProfit/budget)*100).toFixed(1)}%)`;
+        const best=`${s.bestSell}: $${s.bestProfit.toFixed(2)} (${((s.bestProfit/budget)*100).toFixed(1)}%)`;
         html+=`<tr>
+          <td>#${idx+1}</td>
           <td>${s.symbol}</td>
           <td>$${s.latest}</td>
           <td class="${s.oneMonthGrowth>=0?'growth-pos':'growth-neg'}">${s.oneMonthGrowth}%</td>
           <td>${shares}</td>
-          <td>${nextWeek}</td>
-          <td class="highlight">${bestSell}</td>
+          <td>${nw}</td>
+          <td class="highlight">${best}</td>
           <td><canvas id="chart-${idx}"></canvas></td>
         </tr>`;
       });
@@ -169,8 +171,9 @@
 
       stockData.forEach((s,idx)=>{
         const ctx=document.getElementById(`chart-${idx}`);
-        new Chart(ctx,{type:'line',data:{labels:s.prices.map((_,i)=>i+1),
-          datasets:[{data:s.prices,borderColor:"#4CAF50",backgroundColor:"transparent",tension:0.3,borderWidth:2,pointRadius:0}]},
+        new Chart(ctx,{type:'line',
+          data:{labels:s.prices.map((_,i)=>i+1),
+            datasets:[{data:s.prices,borderColor:"#4CAF50",backgroundColor:"transparent",tension:0.3,borderWidth:2,pointRadius:0}]},
           options:{responsive:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}});
       });
     }
@@ -193,7 +196,7 @@
         const[sym,amtStr]=line.split(":"); const amt=parseFloat(amtStr);
         if(!sym||isNaN(amt))continue;
         const data=await getYahooData(sym.trim(),"1mo"); if(!data)continue;
-        total+=amt; const projVal=amt*(1+data.avgWeeklyGrowth*4); // 1M proj
+        total+=amt; const projVal=amt*(1+data.avgWeeklyGrowth*4); 
         proj+=projVal; out+=`<li>${sym.trim()}: $${amt} → 1M ≈ $${projVal.toFixed(2)}</li>`;
       }
       out+=`</ul><b>Total:</b> $${total} → <b>Projected 1M:</b> $${proj.toFixed(2)}`;
