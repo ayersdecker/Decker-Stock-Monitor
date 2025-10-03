@@ -13,14 +13,15 @@
     header h1{margin:0;font-size:2.2rem;color:var(--green);text-shadow:0 0 5px var(--green)}
     header p{margin:6px 0 0;color:#aaa}
     .container{max-width:1500px;margin:26px auto;padding:18px;background:var(--panel);border-radius:10px;box-shadow:0 0 20px rgba(0,255,153,.15)}
-    .controls{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;align-items:end}
-    .ctrl{display:flex;flex-direction:column;gap:6px}
+    
+    /* controls fixed */
+    .controls{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+    .ctrl{flex:1 1 220px;display:flex;flex-direction:column;gap:6px}
+    
     label{font-size:.8rem;color:#aaa}
     input,button{border:1px solid var(--cyan);background:#0a0f0f;color:var(--text);padding:10px;border-radius:6px;outline:none}
     button{cursor:pointer;font-weight:700}
     button:hover{box-shadow:0 0 10px rgba(51,204,255,.25)}
-    .wide{grid-column:span 3}
-    .medium{grid-column:span 2}
     .bar{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
     .timer{color:#aaa;font-size:.85rem}
     .table-wrap{overflow:auto;margin-top:14px;border:1px solid #1a1f24;border-radius:8px}
@@ -49,19 +50,19 @@
   </header>
 
   <div class="container">
-    <!-- Controls always visible -->
+    <!-- Controls -->
     <div class="controls">
-      <div class="ctrl medium">
+      <div class="ctrl">
         <label>💰 Investment Budget ($)</label>
         <input id="budget" type="number" placeholder="0">
       </div>
 
-      <div class="ctrl medium">
+      <div class="ctrl">
         <label>🔎 Filter (Symbol / Company)</label>
         <input id="filter" type="text" placeholder="e.g., AAPL or Apple">
       </div>
 
-      <div class="ctrl wide">
+      <div class="ctrl">
         <label>➕ Add Symbol</label>
         <div style="display:flex;gap:8px">
           <input id="addSymbol" placeholder="Ticker, e.g., AAPL">
@@ -69,20 +70,16 @@
         </div>
       </div>
 
-      <div class="ctrl wide">
+      <div class="ctrl">
         <label>⏱️ Refresh</label>
         <div class="bar">
-          <div class="left">
-            <button id="refreshBtn">Refresh Now</button>
-          </div>
-          <div class="right">
-            <span class="timer">Next auto refresh in <span id="countdown">60</span>s</span>
-          </div>
+          <button id="refreshBtn">Refresh Now</button>
+          <span class="timer">Next auto refresh in <span id="countdown">60</span>s</span>
         </div>
       </div>
     </div>
 
-    <!-- Holdings editor always visible -->
+    <!-- Holdings editor -->
     <div class="pill">
       <strong>📦 Holdings Editor:</strong> set your <em>Shares</em> and <em>Buy Price</em> per symbol to get real PROFIT ($).
       <div id="holdingsRow" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
@@ -129,7 +126,12 @@
     const fmtPct=(p)=>isFinite(p)?(p>0?"+":"")+p.toFixed(1)+"%":"0.0%";
     const growthClass=(p)=>p>=0?"pos":"neg";
 
-    function saveState(){localStorage.setItem("dsm_symbols",JSON.stringify(symbols));localStorage.setItem("dsm_holdings",JSON.stringify(holdings));}
+    function saveState(){
+      localStorage.setItem("dsm_symbols",JSON.stringify(symbols));
+      localStorage.setItem("dsm_holdings",JSON.stringify(holdings));
+    }
+
+    function totalBudget(){ return parseFloat($("#budget").value)||0; }
 
     async function fetchChartData(sym){
       try{
@@ -152,7 +154,14 @@
     function computeRet(latest,prices,days){if(!prices||prices.length<=days)return null;
       const past=avg(prices.slice(prices.length-days-2,prices.length-days+2).filter(v=>v!=null));
       return past?((latest-past)/past):null;}
-    function profitFromHoldings(sym,price){const h=holdings[sym];return h&&h.shares&&h.buy?h.shares*(price-h.buy):0;}
+
+    function profitFromHoldings(sym,price){
+      const h=holdings[sym];
+      if(h && h.shares && h.buy){
+        return h.shares*(price-h.buy);
+      }
+      return 0;
+    }
 
     function renderHoldingsEditor(){
       const wrap=$("#holdingsRow");wrap.innerHTML="";
@@ -227,6 +236,7 @@
     $("#addBtn").onclick=()=>{const s=$("#addSymbol").value.trim().toUpperCase();if(s&&!symbols.includes(s)){symbols.push(s);saveState();loadAll();}$("#addSymbol").value="";};
     $("#refreshBtn").onclick=()=>{countdown=60;loadAll();};
     $("#filter").oninput=()=>{updateTable();};
+    $("#budget").oninput=()=>{updateTable();};
     setInterval(()=>{countdown--;if(countdown<=0){countdown=60;loadAll();}$("#countdown").textContent=countdown;},1000);
 
     loadAll();
