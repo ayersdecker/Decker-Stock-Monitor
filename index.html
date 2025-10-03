@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Top 5 Weekly Stocks</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
+    h1 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+    th { background: #333; color: white; }
+    .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body>
+  <h1>📈 Top 5 Weekly Performing Stocks</h1>
+  <div id="stocks" class="card">Loading...</div>
+
+  <script>
+    const apiKey = "YOUR_ALPHA_VANTAGE_API_KEY";  // get one free at alphavantage.co
+    const symbols = ["AAPL", "MSFT", "NVDA", "AMZN", "TSLA", "GOOG", "META", "NFLX", "AMD", "INTC"];
+
+    async function getWeeklyGrowth(symbol) {
+      try {
+        const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${apiKey}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const series = data["Time Series (Daily)"];
+        if (!series) return null;
+
+        const dates = Object.keys(series).sort().reverse();
+        const latest = parseFloat(series[dates[0]]["4. close"]);
+        const weekAgo = parseFloat(series[dates[5]]["4. close"]); // 5 trading days ago
+        const growth = ((latest - weekAgo) / weekAgo) * 100;
+        
+        return { symbol, latest: latest.toFixed(2), growth: growth.toFixed(2) };
+      } catch (e) {
+        console.error("Error fetching for", symbol, e);
+        return null;
+      }
+    }
+
+    async function loadStocks() {
+      const results = await Promise.all(symbols.map(s => getWeeklyGrowth(s)));
+      const cleanResults = results.filter(r => r !== null);
+      cleanResults.sort((a,b) => b.growth - a.growth);
+      const top5 = cleanResults.slice(0,5);
+
+      let html = `<table>
+                    <tr><th>Symbol</th><th>Price</th><th>1-Week Growth</th><th>Buy Amount</th></tr>`;
+      top5.forEach(s => {
+        html += `<tr>
+                   <td>${s.symbol}</td>
+                   <td>$${s.latest}</td>
+                   <td>${s.growth}%</td>
+                   <td>$200</td>
+                 </tr>`;
+      });
+      html += `</table>`;
+      document.getElementById("stocks").innerHTML = html;
+    }
+
+    loadStocks();
+  </script>
+</body>
+</html>
