@@ -16,67 +16,38 @@
       padding: 30px 20px;
       background: rgba(0,0,0,0.4);
     }
-    header h1 {
-      margin: 0;
-      font-size: 2.5rem;
-    }
+    header h1 { margin: 0; font-size: 2.2rem; }
     .container {
-      max-width: 1200px;
+      max-width: 1250px;
       margin: 30px auto;
       padding: 20px;
       background: rgba(255,255,255,0.1);
       border-radius: 12px;
       box-shadow: 0 6px 18px rgba(0,0,0,0.3);
     }
-    .input-section {
-      margin-bottom: 20px;
-      text-align: center;
-    }
+    .input-section { text-align: center; margin-bottom: 20px; }
     input {
-      padding: 10px;
-      font-size: 1rem;
-      width: 200px;
-      border: none;
-      border-radius: 6px;
-      text-align: center;
-      outline: none;
+      padding: 10px; width: 200px; font-size: 1rem;
+      border: none; border-radius: 6px; text-align: center; outline: none;
     }
-    table {
-      width: 100%; 
-      border-collapse: collapse; 
-      margin-top: 20px;
-    }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
     th, td {
-      padding: 12px 15px; 
-      border-bottom: 1px solid rgba(255,255,255,0.2); 
-      text-align: center;
+      padding: 10px; text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.2);
       vertical-align: middle;
     }
-    th {
-      background: rgba(0,0,0,0.5);
-      color: #fff;
-    }
-    tr:hover {
-      background: rgba(255,255,255,0.1);
-      transition: 0.2s;
-    }
+    th { background: rgba(0,0,0,0.5); color: #fff; }
+    tr:hover { background: rgba(255,255,255,0.1); transition: 0.2s; }
     .growth-pos { color: #4CAF50; font-weight: bold; }
     .growth-neg { color: #FF5252; font-weight: bold; }
-    canvas {
-      width: 100px !important;
-      height: 40px !important;
-    }
-    .refresh-timer {
-      text-align: center;
-      margin-top: 10px;
-      font-size: 1rem;
-      color: #ffeb3b;
-    }
+    .highlight { background: rgba(255,215,0,0.2); font-weight: bold; }
+    canvas { width: 100px !important; height: 40px !important; }
+    .refresh-timer { text-align: center; margin-top: 10px; font-size: 1rem; color: #ffeb3b; }
   </style>
 </head>
 <body>
   <header>
-    <h1>📈 Top 20 Weekly Performing Stocks</h1>
+    <h1>📈 Top 20 Stocks with Projections</h1>
   </header>
   
   <div class="container">
@@ -103,20 +74,33 @@
 
     async function getYahooData(symbol) {
       try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=7d`;
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1mo`;
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
         const res = await fetch(proxyUrl);
         const wrapped = await res.json();
         const data = JSON.parse(wrapped.contents);
 
         const prices = data.chart.result[0].indicators.quote[0].close;
-        if (!prices || prices.length < 2) return null;
+        if (!prices || prices.length < 10) return null;
 
         const latest = prices[prices.length-1];
-        const weekAgo = prices[0];
-        const growth = ((latest - weekAgo) / weekAgo) * 100;
+        const monthAgo = prices[0];
+        const oneMonthGrowth = ((latest - monthAgo) / monthAgo) * 100;
 
-        return { symbol, latest: latest.toFixed(2), growth: growth.toFixed(2), prices };
+        // avg weekly growth from last 4 weeks
+        let weeklyReturns = [];
+        for (let i=5; i<prices.length; i+=5) {
+          let prev = prices[i-5];
+          let curr = prices[i];
+          if (prev && curr) weeklyReturns.push((curr-prev)/prev);
+        }
+        const avgWeeklyGrowth = weeklyReturns.reduce((a,b)=>a+b,0) / weeklyReturns.length;
+
+        return { 
+          symbol, latest: latest.toFixed(2), 
+          oneMonthGrowth: oneMonthGrowth.toFixed(2), 
+          avgWeeklyGrowth, prices 
+        };
       } catch (e) {
         console.error("Error fetching", symbol, e);
         return null;
@@ -127,7 +111,7 @@
       document.getElementById("stocks").innerHTML = "Refreshing data...";
       const results = await Promise.all(symbols.map(s => getYahooData(s)));
       stockData = results.filter(r => r !== null);
-      stockData.sort((a,b) => b.growth - a.growth);
+      stockData.sort((a,b) => b.oneMonthGrowth - a.oneMonthGrowth);
       stockData = stockData.slice(0,20);
       updateTable();
     }
@@ -139,20 +123,39 @@
                     <tr>
                       <th>Symbol</th>
                       <th>Price</th>
-                      <th>1-Week Growth</th>
-                      <th>Shares w/ $${budget || 0}</th>
-                      <th>Potential Profit</th>
+                      <th>1-Mo Growth</th>
+                      <th>Shares w/ $${budget||0}</th>
+                      <th>1W Profit</th>
+                      <th>2W Profit</th>
+                      <th>3W Profit</th>
+                      <th>Best Sell</th>
                       <th>Trend</th>
                     </tr>`;
       stockData.forEach((s, index) => {
         const shares = budget > 0 ? (budget / s.latest).toFixed(2) : "-";
-        const profit = budget > 0 ? ((shares * s.latest) * (s.growth / 100)).toFixed(2) : "-";
+
+        let weekProfits = ["-","-","-"];
+        let bestIdx = -1;
+        if (budget > 0) {
+          for (let w=1; w<=3; w++) {
+            let projValue = budget * Math.pow(1 + s.avgWeeklyGrowth, w);
+            let profit = projValue - budget;
+            weekProfits[w-1] = "$" + profit.toFixed(2);
+          }
+          bestIdx = weekProfits
+            .map((p,i)=>({i,val:parseFloat(p.replace('$',''))}))
+            .reduce((max,cur)=>cur.val>max.val?cur:max,{i:-1,val:-Infinity}).i;
+        }
+
         html += `<tr>
                    <td>${s.symbol}</td>
                    <td>$${s.latest}</td>
-                   <td class="${s.growth >= 0 ? 'growth-pos':'growth-neg'}">${s.growth}%</td>
+                   <td class="${s.oneMonthGrowth >= 0 ? 'growth-pos':'growth-neg'}">${s.oneMonthGrowth}%</td>
                    <td>${shares}</td>
-                   <td>${profit !== "-" ? "$"+profit : "-"}</td>
+                   <td class="${bestIdx===0?'highlight':''}">${weekProfits[0]}</td>
+                   <td class="${bestIdx===1?'highlight':''}">${weekProfits[1]}</td>
+                   <td class="${bestIdx===2?'highlight':''}">${weekProfits[2]}</td>
+                   <td>${bestIdx>=0 ? (bestIdx+1)+"W" : "-"}</td>
                    <td><canvas id="chart-${index}"></canvas></td>
                  </tr>`;
       });
@@ -167,7 +170,7 @@
             labels: s.prices.map((_,i)=>i+1),
             datasets: [{
               data: s.prices,
-              borderColor: s.growth >= 0 ? "#4CAF50" : "#FF5252",
+              borderColor: s.oneMonthGrowth >= 0 ? "#4CAF50" : "#FF5252",
               backgroundColor: "transparent",
               tension: 0.3,
               borderWidth: 2,
