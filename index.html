@@ -134,26 +134,23 @@
 
     function updateTable() {
       const budget = parseFloat(document.getElementById("budget").value) || 0;
-      const perStock = budget > 0 ? (budget / stockData.length).toFixed(2) : "-";
 
       let html = `<table>
                     <tr>
                       <th>Symbol</th>
                       <th>Price</th>
                       <th>1-Week Growth</th>
-                      <th>Recommended Buy</th>
-                      <th>Projected Shares</th>
+                      <th>Shares w/ $${budget || 0}</th>
                       <th>Potential Profit</th>
                       <th>Trend</th>
                     </tr>`;
       stockData.forEach((s, index) => {
-        const shares = budget > 0 ? (perStock / s.latest).toFixed(2) : "-";
+        const shares = budget > 0 ? (budget / s.latest).toFixed(2) : "-";
         const profit = budget > 0 ? ((shares * s.latest) * (s.growth / 100)).toFixed(2) : "-";
         html += `<tr>
                    <td>${s.symbol}</td>
                    <td>$${s.latest}</td>
                    <td class="${s.growth >= 0 ? 'growth-pos':'growth-neg'}">${s.growth}%</td>
-                   <td>${budget > 0 ? "$"+perStock : "-"}</td>
                    <td>${shares}</td>
                    <td>${profit !== "-" ? "$"+profit : "-"}</td>
                    <td><canvas id="chart-${index}"></canvas></td>
