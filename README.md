@@ -1,2 +1,2 @@
-# StockYahoo
-Simple Stock Performance Monitor for 1 Week Growths
+# Decker's Stock Monitor
+Simple Stock Performance Monitor with Short-term Projections
