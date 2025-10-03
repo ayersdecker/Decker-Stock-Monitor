@@ -66,6 +66,12 @@
       width: 100px !important;
       height: 40px !important;
     }
+    .refresh-timer {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 1rem;
+      color: #ffeb3b;
+    }
   </style>
 </head>
 <body>
@@ -80,6 +86,7 @@
     </div>
     
     <div id="stocks">Loading...</div>
+    <div class="refresh-timer">Next refresh in <span id="countdown"></span> seconds...</div>
   </div>
 
   <!-- Chart.js -->
@@ -91,6 +98,8 @@
                      "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
 
     let stockData = [];
+    const refreshInterval = 60; // seconds
+    let countdown = refreshInterval;
 
     async function getYahooData(symbol) {
       try {
@@ -115,10 +124,11 @@
     }
 
     async function loadStocks() {
+      document.getElementById("stocks").innerHTML = "Refreshing data...";
       const results = await Promise.all(symbols.map(s => getYahooData(s)));
       stockData = results.filter(r => r !== null);
       stockData.sort((a,b) => b.growth - a.growth);
-      stockData = stockData.slice(0,20); // top 20
+      stockData = stockData.slice(0,20);
       updateTable();
     }
 
@@ -133,23 +143,25 @@
                       <th>1-Week Growth</th>
                       <th>Recommended Buy</th>
                       <th>Projected Shares</th>
+                      <th>Potential Profit</th>
                       <th>Trend</th>
                     </tr>`;
       stockData.forEach((s, index) => {
         const shares = budget > 0 ? (perStock / s.latest).toFixed(2) : "-";
+        const profit = budget > 0 ? ((shares * s.latest) * (s.growth / 100)).toFixed(2) : "-";
         html += `<tr>
                    <td>${s.symbol}</td>
                    <td>$${s.latest}</td>
                    <td class="${s.growth >= 0 ? 'growth-pos':'growth-neg'}">${s.growth}%</td>
                    <td>${budget > 0 ? "$"+perStock : "-"}</td>
                    <td>${shares}</td>
+                   <td>${profit !== "-" ? "$"+profit : "-"}</td>
                    <td><canvas id="chart-${index}"></canvas></td>
                  </tr>`;
       });
       html += `</table>`;
       document.getElementById("stocks").innerHTML = html;
 
-      // draw charts
       stockData.forEach((s, index) => {
         const ctx = document.getElementById(`chart-${index}`);
         new Chart(ctx, {
@@ -174,7 +186,19 @@
       });
     }
 
+    function startAutoRefresh() {
+      setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          loadStocks();
+          countdown = refreshInterval;
+        }
+        document.getElementById("countdown").innerText = countdown;
+      }, 1000);
+    }
+
     loadStocks();
+    startAutoRefresh();
   </script>
 </body>
 </html>
