@@ -3,256 +3,282 @@
 <head>
   <meta charset="UTF-8">
   <title>Decker's Stock Monitor</title>
+
+  <!-- Finance themed favicon -->
   <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2331/2331941.png" type="image/png">
+
   <style>
-    :root{
-      --bg:#0a0f0f; --panel:#0d1117; --green:#00ff99; --red:#ff4d4d; --cyan:#33ccff; --text:#e0e0e0;
+    body {
+      font-family: 'Fira Code', Consolas, monospace;
+      background: linear-gradient(145deg, #0a0f0f, #000000);
+      margin: 0; padding: 0; color: #e0e0e0;
     }
-    body{font-family:'Fira Code',Consolas,monospace;background:linear-gradient(145deg,var(--bg),#000);color:var(--text);margin:0}
-    header{padding:24px 16px;background:var(--panel);border-bottom:2px solid var(--green);box-shadow:0 0 15px rgba(0,255,153,.2);text-align:center}
-    header h1{margin:0;font-size:2.2rem;color:var(--green);text-shadow:0 0 5px var(--green)}
-    header p{margin:6px 0 0;color:#aaa}
-    .container{max-width:1500px;margin:26px auto;padding:18px;background:var(--panel);border-radius:10px;box-shadow:0 0 20px rgba(0,255,153,.15)}
-    
-    /* controls */
-    .controls{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
-    .ctrl{flex:1 1 220px;display:flex;flex-direction:column;gap:6px}
-    
-    label{font-size:.8rem;color:#aaa}
-    input,button{border:1px solid var(--cyan);background:#0a0f0f;color:var(--text);padding:10px;border-radius:6px;outline:none}
-    button{cursor:pointer;font-weight:700}
-    button:hover{box-shadow:0 0 10px rgba(51,204,255,.25)}
-    .bar{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
-    .timer{color:#aaa;font-size:.85rem}
-    .table-wrap{overflow:auto;margin-top:14px;border:1px solid #1a1f24;border-radius:8px}
-    table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:1200px}
-    th,td{padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.06);text-align:center}
-    th{position:sticky;top:0;background:#111;color:var(--cyan);text-transform:uppercase;font-size:.75rem;cursor:pointer}
-    tr:hover{background:rgba(0,255,153,.08)}
-    .profit-pos{color:var(--green);font-weight:700;text-shadow:0 0 5px var(--green)}
-    .profit-neg{color:var(--red);font-weight:700;text-shadow:0 0 5px var(--red)}
-    .pos{color:var(--green);font-weight:700}
-    .neg{color:var(--red);font-weight:700}
-    .highlight{background:rgba(51,204,255,.15);font-weight:700}
-    .news{text-align:left;max-width:280px}
-    a{color:var(--cyan);text-decoration:none}
-    a:hover{text-decoration:underline}
-    canvas{width:130px !important;height:42px !important}
-    .pill{border:1px dashed var(--cyan);padding:8px;border-radius:6px;margin-top:12px}
-    .remove-btn{border-color:#444;color:#ccc}
-    .remove-btn:hover{border-color:#ff7777;color:#fff}
+    header {
+      text-align: center; padding: 25px 15px;
+      background: #0d1117;
+      border-bottom: 2px solid #00ff99;
+      box-shadow: 0 0 15px rgba(0, 255, 153, 0.2);
+    }
+    header h1 { margin: 0; font-size: 2.5rem; color: #00ff99; text-shadow: 0 0 5px #00ff99; }
+    header p { margin: 5px 0 0; font-size: 1rem; color: #aaa; }
+
+    .container {
+      max-width: 1350px; margin: 30px auto; padding: 20px;
+      background: #0d1117;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(0,255,153,0.15);
+    }
+
+    .input-section { text-align: center; margin-bottom: 20px; }
+    input {
+      padding: 10px; font-size: 1rem;
+      border-radius: 5px; border: 1px solid #33ccff; outline: none;
+      background: #0a0f0f; color: #e0e0e0;
+      box-shadow: inset 0 0 10px rgba(51,204,255,0.2);
+    }
+
+    table { 
+      width: 100%; border-collapse: collapse; 
+      margin-top: 20px; font-size: 0.9rem;
+    }
+    th, td { 
+      padding: 12px; text-align: center; 
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    th { 
+      background: #111; 
+      color: #33ccff; 
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+    }
+    tr { transition: background 0.2s; }
+    tr:hover { background: rgba(0,255,153,0.08); }
+
+    .profit-pos { color: #00ff99; font-weight: bold; text-shadow: 0 0 5px #00ff99; }
+    .profit-neg { color: #ff4d4d; font-weight: bold; text-shadow: 0 0 5px #ff4d4d; }
+    .highlight { background: rgba(51,204,255,0.15); font-weight: bold; }
+    td.news { text-align: left; max-width: 280px; font-size: 0.85rem; color: #ddd; }
+    canvas { width: 120px !important; height: 40px !important; }
+
+    a { color: #33ccff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .refresh-timer {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Fast-profit stocks (≤3 months) • console/Robinhood style</p>
+    <p>Top 10 fast-profit stocks (≤3 months, tech-console style)</p>
   </header>
 
   <div class="container">
-    <!-- Controls -->
-    <div class="controls">
-      <div class="ctrl">
-        <label>💰 Investment Budget ($)</label>
-        <input id="budget" type="number" placeholder="0">
-      </div>
-
-      <div class="ctrl">
-        <label>🔎 Filter (Symbol / Company)</label>
-        <input id="filter" type="text" placeholder="e.g., AAPL or Apple">
-      </div>
-
-      <div class="ctrl">
-        <label>➕ Add Symbol</label>
-        <div style="display:flex;gap:8px">
-          <input id="addSymbol" placeholder="Ticker, e.g., AAPL">
-          <button id="addBtn">Add</button>
-        </div>
-      </div>
-
-      <div class="ctrl">
-        <label>⏱️ Refresh</label>
-        <div class="bar">
-          <button id="refreshBtn">Refresh Now</button>
-          <span class="timer">Next auto refresh in <span id="countdown">60</span>s</span>
-        </div>
-      </div>
+    <div class="input-section">
+      <label for="budget">💰 Investment Budget ($): </label>
+      <input type="number" id="budget" placeholder="0" oninput="loadStocks()">
     </div>
 
-    <!-- Holdings editor -->
-    <div class="pill">
-      <strong>📦 Holdings Editor:</strong> set your <em>Shares</em> and <em>Buy Price</em> per symbol to override budget-based simulation.
-      <div id="holdingsRow" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
-    </div>
-
-    <!-- Table -->
-    <div class="table-wrap">
-      <table id="stocksTable">
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Symbol</th>
-            <th>Company</th>
-            <th>Price</th>
-            <th>1D</th>
-            <th>1W</th>
-            <th>1M</th>
-            <th>3M</th>
-            <th>PROFIT ($)</th>
-            <th>Best Sell</th>
-            <th>Volume</th>
-            <th>Mkt Cap</th>
-            <th>Trend Summary</th>
-            <th>Chart</th>
-            <th>Remove</th>
-          </tr>
-        </thead>
-        <tbody id="stocksBody"><tr><td colspan="15">Loading…</td></tr></tbody>
-      </table>
-    </div>
+    <div id="stocks">Loading...</div>
+    <div class="refresh-timer">⏳ Next refresh in <span id="countdown"></span> seconds...</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    // --- Config & helpers ---
-    const proxy="https://api.allorigins.win/get?url=";
-    let symbols=JSON.parse(localStorage.getItem("dsm_symbols"))||["AAPL","MSFT","NVDA","AMZN","TSLA"];
-    let holdings=JSON.parse(localStorage.getItem("dsm_holdings"))||{};
-    let countdown=60,rowsCache=[];
+    const proxy = "https://api.allorigins.win/get?url=";
 
-    const $=(s)=>document.querySelector(s);
-    const avg=(a)=>a.reduce((x,y)=>x+y,0)/a.length;
-    const fmtMoney=(n)=>"$"+(isFinite(n)?n.toFixed(2):"0.00");
-    const fmtPct=(p)=>isFinite(p)?(p>0?"+":"")+p.toFixed(1)+"%":"0.0%";
-    const growthClass=(p)=>p>=0?"pos":"neg";
+    const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC",
+                     "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO",
+                     "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
 
-    function saveState(){
-      localStorage.setItem("dsm_symbols",JSON.stringify(symbols));
-      localStorage.setItem("dsm_holdings",JSON.stringify(holdings));
-    }
-
-    function totalBudget(){ return parseFloat($("#budget").value)||0; }
-
-    async function fetchChartData(sym){
-      try{
-        const url=`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=3mo`;
-        const res=await fetch(proxy+encodeURIComponent(url));
-        const w=await res.json();const d=JSON.parse(w.contents);
-        const r=d?.chart?.result?.[0];if(!r)return null;
-        return{prices:r.indicators.quote[0].close,ts:r.timestamp};
-      }catch(e){return null;}
-    }
-    async function fetchQuotes(list){
-      const url=`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${list.join(",")}`;
-      const res=await fetch(proxy+encodeURIComponent(url));
-      const w=await res.json();const d=JSON.parse(w.contents);
-      const map={};(d?.quoteResponse?.result||[]).forEach(q=>{
-        map[q.symbol]={price:q.regularMarketPrice,volume:q.regularMarketVolume,marketCap:q.marketCap};
-      });return map;
-    }
-
-    function computeRet(latest,prices,days){if(!prices||prices.length<=days)return null;
-      const past=avg(prices.slice(prices.length-days-2,prices.length-days+2).filter(v=>v!=null));
-      return past?((latest-past)/past):null;}
-
-    function profitFromHoldings(sym,price){
-      const h=holdings[sym];
-      // manual holdings override
-      if(h && h.shares && h.buy){
-        return h.shares*(price-h.buy);
-      }
-      // budget simulation
-      const budget=totalBudget();
-      if(budget>0 && rowsCache.length>0){
-        const perSymbol=budget/symbols.length;
-        if(!holdings[sym]) holdings[sym]={};
-        if(!holdings[sym].buyInit){ holdings[sym].buyInit=price; } // snapshot buy baseline
-        const shares=perSymbol/holdings[sym].buyInit;
-        return shares*(price-holdings[sym].buyInit);
-      }
-      return 0;
-    }
-
-    function renderHoldingsEditor(){
-      const wrap=$("#holdingsRow");wrap.innerHTML="";
-      symbols.forEach(sym=>{
-        const h=holdings[sym]||{};
-        wrap.innerHTML+=`
-          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;min-width:220px">
-            <div class="ctrl"><label>${sym} Shares</label><input type="number" data-type="shares" data-sym="${sym}" value="${h.shares??""}"></div>
-            <div class="ctrl"><label>${sym} Buy Price</label><input type="number" data-type="buy" data-sym="${sym}" value="${h.buy??""}"></div>
-          </div>`;
-      });
-      wrap.querySelectorAll("input").forEach(inp=>{
-        inp.oninput=(e)=>{
-          const sym=e.target.dataset.sym,t=e.target.dataset.type;
-          holdings[sym]=holdings[sym]||{};
-          const v=parseFloat(e.target.value);
-          holdings[sym][t]=isNaN(v)?null:v;
-          saveState();updateTable();
-        };
-      });
-    }
-
-    async function loadAll(){
-      $("#stocksBody").innerHTML="<tr><td colspan=15>Refreshing…</td></tr>";
-      const quotes=await fetchQuotes(symbols);
-      const results=[];
-      for(const sym of symbols){
-        const q=quotes[sym]||{};
-        const chart=await fetchChartData(sym);
-        if(!chart)continue;
-        const latest=q.price??chart.prices.at(-1);
-        results.push({
-          symbol:sym,price:latest,
-          g1:computeRet(latest,chart.prices,1),
-          g5:computeRet(latest,chart.prices,5),
-          g22:computeRet(latest,chart.prices,22),
-          g66:computeRet(latest,chart.prices,66),
-          volume:q.volume,mcap:q.marketCap,prices:chart.prices
-        });
-      }
-      rowsCache=results;updateTable();renderHoldingsEditor();
-    }
-
-    function updateTable(){
-      const body=$("#stocksBody");body.innerHTML="";
-      rowsCache.forEach((r,idx)=>{
-        const profit=profitFromHoldings(r.symbol,r.price);
-        const tr=document.createElement("tr");
-        tr.innerHTML=`
-          <td>#${idx+1}</td>
-          <td>${r.symbol}</td>
-          <td>${r.symbol}</td>
-          <td>${fmtMoney(r.price)}</td>
-          <td class="${growthClass(r.g1*100)}">${fmtPct(r.g1*100)}</td>
-          <td class="${growthClass(r.g5*100)}">${fmtPct(r.g5*100)}</td>
-          <td class="${growthClass(r.g22*100)}">${fmtPct(r.g22*100)}</td>
-          <td class="${growthClass(r.g66*100)}">${fmtPct(r.g66*100)}</td>
-          <td class="${profit>=0?"profit-pos":"profit-neg"}">${fmtMoney(profit)}</td>
-          <td>-</td>
-          <td>${r.volume??"-"}</td>
-          <td>${r.mcap??"-"}</td>
-          <td class="news">-</td>
-          <td><canvas id="c-${r.symbol}"></canvas></td>
-          <td><button class="remove-btn" data-rm="${r.symbol}">✖</button></td>`;
-        body.appendChild(tr);
-        new Chart(tr.querySelector(`#c-${r.symbol}`),{type:'line',data:{labels:r.prices.map((_,i)=>i),datasets:[{data:r.prices,borderColor:"#00ff99",tension:.3,pointRadius:0}]},options:{responsive:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}});
-        tr.querySelector("[data-rm]").onclick=()=>{symbols=symbols.filter(s=>s!==r.symbol);delete holdings[r.symbol];saveState();renderHoldingsEditor();loadAll();};
-      });
-    }
-
-    // --- Events ---
-    $("#addBtn").onclick=()=>{const s=$("#addSymbol").value.trim().toUpperCase();if(s&&!symbols.includes(s)){symbols.push(s);saveState();loadAll();}$("#addSymbol").value="";};
-    $("#refreshBtn").onclick=()=>{countdown=60;loadAll();};
-    $("#filter").oninput=()=>{updateTable();};
-    $("#budget").oninput=()=>{
-      symbols.forEach(sym=>{ if(holdings[sym]) delete holdings[sym].buyInit; });
-      updateTable();
+    const companyNames = {
+      AAPL: "Apple Inc.", MSFT: "Microsoft Corp.", NVDA: "NVIDIA Corp.", AMZN: "Amazon.com Inc.",
+      TSLA: "Tesla Inc.", GOOG: "Alphabet Inc. (Google)", META: "Meta Platforms Inc.", NFLX: "Netflix Inc.",
+      AMD: "Advanced Micro Devices", INTC: "Intel Corp.", ORCL: "Oracle Corp.", PYPL: "PayPal Holdings",
+      CRM: "Salesforce Inc.", CSCO: "Cisco Systems", QCOM: "Qualcomm Inc.", IBM: "IBM Corp.",
+      BA: "Boeing Co.", DIS: "Walt Disney Co.", NKE: "Nike Inc.", KO: "Coca-Cola Co.", PEP: "PepsiCo Inc.",
+      COST: "Costco Wholesale", XOM: "Exxon Mobil Corp.", CVX: "Chevron Corp.", WMT: "Walmart Inc.",
+      PFE: "Pfizer Inc.", V: "Visa Inc.", MA: "Mastercard Inc.", JPM: "JPMorgan Chase",
+      GS: "Goldman Sachs", UBER: "Uber Technologies"
     };
-    setInterval(()=>{countdown--;if(countdown<=0){countdown=60;loadAll();}$("#countdown").textContent=countdown;},1000);
 
-    loadAll();
+    const blacklist = [
+      "AI Stocks In Buy Areas",
+      "Sector Update",
+      "Tech Stocks Gain",
+      "Market Summary",
+      "ETF",
+    ];
+
+    let stockData = [];
+    const refreshInterval = 60;
+    let countdown = refreshInterval;
+
+    function avg(arr) { return arr.reduce((a,b)=>a+b,0)/arr.length; }
+
+    async function fetchNewsSnippet(symbol) {
+      try {
+        const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}`;
+        const res = await fetch(proxy + encodeURIComponent(url));
+        const wrapped = await res.json();
+        const obj = JSON.parse(wrapped.contents);
+
+        if (obj.news && obj.news.length > 0) {
+          const valid = obj.news.find(n =>
+            n.link &&
+            n.publisher &&
+            blacklist.every(bad => !n.title.includes(bad))
+          );
+          if (valid) {
+            return { title: valid.title, link: valid.link };
+          }
+        }
+      } catch (err) {
+        console.error("News fetch failed for", symbol, err);
+      }
+      return { title: "No latest news affecting the stock behavior", link: null };
+    }
+
+    async function getYahooData(symbol, range="3mo") {
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
+        const res = await fetch(proxy + encodeURIComponent(url));
+        const wrapped = await res.json();
+        const data = JSON.parse(wrapped.contents);
+        const prices = data.chart.result[0].indicators.quote[0].close;
+        const timestamps = data.chart.result[0].timestamp;
+        if (!prices || prices.length < 22) return null;
+
+        const latest = prices[prices.length-1];
+        let budget = parseFloat(document.getElementById("budget").value);
+        if (isNaN(budget)) budget = 0;
+
+        const horizons = { "1W":5, "2W":10, "3W":15, "1M":22, "3M":66 };
+        let best = { label: "-", val: 0, date: "-", pct: 0 };
+        let oneWeekLabel = "1W: $0 (0%)";
+
+        for (const [label, days] of Object.entries(horizons)) {
+          if (prices.length > days) {
+            const window = prices.slice(prices.length - days - 3, prices.length - days + 2).filter(v=>v != null);
+            if (window.length > 0) {
+              const past = avg(window);
+              if (past > 0) {
+                const ret = (latest - past) / past;
+                const profit = ret * budget;
+                if (label === "1W") {
+                  oneWeekLabel = `1W: $${profit.toFixed(2)} (${(ret*100).toFixed(1)}%)`;
+                }
+                if (profit > best.val && ret < 0.5) {
+                  const sellTs = timestamps[timestamps.length - days];
+                  const sellDate = new Date(sellTs * 1000).toLocaleDateString();
+                  best = { label, val: profit, date: sellDate, pct: ret * 100 };
+                }
+              }
+            }
+          }
+        }
+
+        const news = await fetchNewsSnippet(symbol);
+
+        return {
+          symbol,
+          name: companyNames[symbol] || symbol,
+          price: latest.toFixed(2),
+          oneWeek: oneWeekLabel,
+          best,
+          news,
+          prices
+        };
+      } catch (err) {
+        console.error("Stock fetch failed for", symbol, err);
+        return null;
+      }
+    }
+
+    async function loadStocks() {
+      document.getElementById("stocks").innerHTML = "Refreshing data...";
+      const promises = symbols.map(s => getYahooData(s));
+      const results = await Promise.all(promises);
+      stockData = results.filter(r => r !== null);
+
+      stockData.sort((a, b) => b.best.val - a.best.val);
+      stockData = stockData.slice(0, 10);
+      updateTable();
+    }
+
+    function updateTable() {
+      let html = `<table>
+        <tr>
+          <th>Rank</th><th>Symbol</th><th>Company</th><th>Price</th>
+          <th>1-Week Growth</th><th>Profit ($)</th><th>Best Sell (≤3M)</th><th>Trend Summary</th><th>Chart</th>
+        </tr>`;
+      stockData.forEach((s, idx) => {
+        const profit = `$${s.best.val.toFixed(2)}`;
+        const sellLabel = s.best.label !== "-" ? `${s.best.label} → ${s.best.date}` : "-";
+        const canvasId = `chart-${idx}`;
+        const newsHTML = s.news.link
+          ? `<a href="${s.news.link}" target="_blank">${s.news.title}</a>`
+          : s.news.title;
+
+        html += `<tr>
+          <td>#${idx+1}</td>
+          <td>${s.symbol}</td>
+          <td>${s.name}</td>
+          <td>$${s.price}</td>
+          <td>${s.oneWeek}</td>
+          <td class="${s.best.val>=0 ? 'profit-pos':'profit-neg'}">${profit}</td>
+          <td class="highlight">${sellLabel}</td>
+          <td class="news">${newsHTML}</td>
+          <td><canvas id="${canvasId}"></canvas></td>
+        </tr>`;
+      });
+      html += `</table>`;
+      document.getElementById("stocks").innerHTML = html;
+
+      // Draw charts
+      stockData.forEach((s, idx) => {
+        const ctx = document.getElementById(`chart-${idx}`);
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: s.prices.map((_, i) => i),
+            datasets: [{
+              data: s.prices,
+              borderColor: "#00ff99",
+              backgroundColor: "transparent",
+              tension: 0.3,
+              borderWidth: 2,
+              pointRadius: 0
+            }]
+          },
+          options: {
+            responsive: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { display: false }, y: { display: false } }
+          }
+        });
+      });
+    }
+
+    function startAutoRefresh() {
+      setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          loadStocks();
+          countdown = refreshInterval;
+        }
+        document.getElementById("countdown").innerText = countdown;
+      }, 1000);
+    }
+
+    loadStocks();
+    startAutoRefresh();
   </script>
 </body>
 </html>
+
