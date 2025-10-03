@@ -17,7 +17,7 @@
     header h1 { margin: 0; font-size: 2.3rem; color: #ffeb3b; }
     header p { margin: 5px 0 0; font-size: 1rem; color: #bbb; }
     .container {
-      max-width: 1100px; margin: 30px auto; padding: 20px;
+      max-width: 900px; margin: 30px auto; padding: 20px;
       background: rgba(255,255,255,0.05);
       border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
     }
@@ -26,40 +26,38 @@
       padding: 12px; font-size: 1rem;
       border-radius: 6px; border: none; outline: none;
     }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
-    th, td { padding: 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 1rem; }
+    th, td { padding: 12px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); }
     th { background: rgba(0,0,0,0.6); }
     tr:hover { background: rgba(255,255,255,0.1); transition: 0.2s; }
-    .growth-pos { color: #4CAF50; font-weight: bold; }
-    .growth-neg { color: #FF5252; font-weight: bold; }
     .highlight { background: rgba(255,215,0,0.2); font-weight: bold; }
-    canvas { width: 100px !important; height: 40px !important; }
     .refresh-timer { text-align: center; margin-top: 10px; font-size: 1rem; color: #ffeb3b; }
   </style>
 </head>
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Top 10 fast-profit stocks (rolling trend projection ≤3 months)</p>
+    <p>Top 10 fast-profit stocks (≤3 months)</p>
   </header>
 
   <div class="container">
     <div class="input-section">
       <label for="budget">💰 Investment Budget ($): </label>
-      <input type="number" id="budget" placeholder="5000" oninput="updateTable()">
+      <input type="number" id="budget" placeholder="5000" oninput="loadStocks()">
     </div>
 
     <div id="stocks">Loading...</div>
     <div class="refresh-timer">⏳ Next refresh in <span id="countdown"></span> seconds...</div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC",
                      "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO",
                      "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
     let stockData = [];
     const refreshInterval = 60; let countdown = refreshInterval;
+
+    function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
 
     async function getYahooData(symbol, range="3mo") {
       try {
@@ -69,35 +67,34 @@
         const data = JSON.parse(wrapped.contents);
 
         const prices = data.chart.result[0].indicators.quote[0].close;
+        const timestamps = data.chart.result[0].timestamp;
         if (!prices || prices.length < 22) return null;
 
         const latest = prices[prices.length-1];
-        const monthAgo = prices[prices.length-22];
-        const oneMonthGrowth = ((latest - monthAgo) / monthAgo) * 100;
-
         const budget = parseFloat(document.getElementById("budget").value)||1000;
 
-        // Direct returns from actual past data
+        // Horizons: days → label
         const horizons = { "1W":5, "2W":10, "3W":15, "1M":22, "3M":66 };
-        let best={label:"-",val:-Infinity};
-        let nextWeek="-";
-
+        let best={label:"-",val:-Infinity,date:""};
+        
         for (const [label,days] of Object.entries(horizons)) {
           if (prices.length > days) {
-            const past=prices[prices.length-days-1];
-            if(past){
-              const ret = (latest - past)/past; // real return %
-              const profit = ret * budget;
-              if(label==="1W") nextWeek=`$${profit.toFixed(2)} (${(ret*100).toFixed(1)}%)`;
-              if(profit>best.val) best={label,val:profit,pct:(ret*100)};
+            const window = prices.slice(prices.length-days-3, prices.length-days+2).filter(v=>v);
+            if(window.length>0){
+              const past=avg(window);
+              if(past>0){
+                const ret=(latest-past)/past;
+                const profit=ret*budget;
+                if (profit>best.val && profit/budget<0.5) { // cap <50% inside 3m
+                  const sellDate = new Date(timestamps[timestamps.length-days]*1000);
+                  best={label,val:profit,date:sellDate.toLocaleDateString()};
+                }
+              }
             }
           }
         }
 
-        return { symbol, latest: latest.toFixed(2),
-                 oneMonthGrowth: oneMonthGrowth.toFixed(2),
-                 bestSell: best.label, bestProfit: best.val, bestPct: best.pct,
-                 nextWeek, prices };
+        return { symbol, price: latest.toFixed(2), best };
       } catch { return null; }
     }
 
@@ -106,41 +103,27 @@
       const results = await Promise.all(symbols.map(s=>getYahooData(s)));
       stockData = results.filter(r=>r!==null);
 
-      // Rank by best real short-term profit
-      stockData.sort((a,b)=>b.bestProfit-a.bestProfit);
+      stockData.sort((a,b)=>b.best.val-a.best.val);
       stockData = stockData.slice(0,10);
       updateTable();
     }
 
     function updateTable() {
-      const budget=parseFloat(document.getElementById("budget").value)||0;
       let html = `<table>
-        <tr><th>Rank</th><th>Symbol</th><th>Price</th><th>1-Mo Growth</th>
-        <th>Shares</th><th>Next Week Profit</th><th>Best Sell (≤3M)</th><th>Trend</th></tr>`;
+        <tr><th>Rank</th><th>Symbol</th><th>Price</th><th>Potential Profit</th><th>Best Sell</th></tr>`;
       stockData.forEach((s,idx)=>{
-        const shares=budget>0?(budget/s.latest).toFixed(2):"-";
-        const best = s.bestSell!=="-" ? `${s.bestSell}: $${s.bestProfit.toFixed(2)} (${s.bestPct.toFixed(1)}%)` : "-";
+        const profit = s.best.val>0?`$${s.best.val.toFixed(2)}`:"-";
+        const sell = s.best.label!=="-" ? `${s.best.label} → ${s.best.date}`:"-";
         html+=`<tr>
           <td>#${idx+1}</td>
           <td>${s.symbol}</td>
-          <td>$${s.latest}</td>
-          <td class="${s.oneMonthGrowth>=0?'growth-pos':'growth-neg'}">${s.oneMonthGrowth}%</td>
-          <td>${shares}</td>
-          <td>${s.nextWeek}</td>
-          <td class="highlight">${best}</td>
-          <td><canvas id="chart-${idx}"></canvas></td>
+          <td>$${s.price}</td>
+          <td class="highlight">${profit}</td>
+          <td>${sell}</td>
         </tr>`;
       });
       html+="</table>";
       document.getElementById("stocks").innerHTML=html;
-
-      stockData.forEach((s,idx)=>{
-        const ctx=document.getElementById(`chart-${idx}`);
-        new Chart(ctx,{type:'line',
-          data:{labels:s.prices.map((_,i)=>i+1),
-            datasets:[{data:s.prices,borderColor:"#4CAF50",backgroundColor:"transparent",tension:0.3,borderWidth:2,pointRadius:0}]},
-          options:{responsive:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}});
-      });
     }
 
     function startAutoRefresh(){
@@ -152,3 +135,4 @@
   </script>
 </body>
 </html>
+
