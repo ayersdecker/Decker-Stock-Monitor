@@ -17,7 +17,7 @@
     header h1 { margin: 0; font-size: 2.3rem; color: #ffeb3b; }
     header p { margin: 5px 0 0; font-size: 1rem; color: #bbb; }
     .container {
-      max-width: 1200px; margin: 30px auto; padding: 20px;
+      max-width: 1300px; margin: 30px auto; padding: 20px;
       background: rgba(255,255,255,0.05);
       border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
     }
@@ -34,12 +34,13 @@
     .profit-neg { color: #FF5252; font-weight: bold; }
     .highlight { background: rgba(255,215,0,0.2); font-weight: bold; }
     td.news { text-align: left; max-width: 250px; font-size: 0.85rem; }
+    canvas { width: 120px !important; height: 40px !important; }
   </style>
 </head>
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Top 10 fast-profit stocks (≤3 months, with 1-week growth & news)</p>
+    <p>Top 10 fast-profit stocks (≤3 months, with 1-week growth, news & charts)</p>
   </header>
 
   <div class="container">
@@ -57,6 +58,42 @@
     const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC",
                      "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO",
                      "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
+
+    // Mapping for company names
+    const companyNames = {
+      AAPL: "Apple Inc.",
+      MSFT: "Microsoft Corp.",
+      NVDA: "NVIDIA Corp.",
+      AMZN: "Amazon.com Inc.",
+      TSLA: "Tesla Inc.",
+      GOOG: "Alphabet Inc. (Google)",
+      META: "Meta Platforms Inc.",
+      NFLX: "Netflix Inc.",
+      AMD: "Advanced Micro Devices",
+      INTC: "Intel Corp.",
+      ORCL: "Oracle Corp.",
+      PYPL: "PayPal Holdings",
+      CRM: "Salesforce Inc.",
+      CSCO: "Cisco Systems",
+      QCOM: "Qualcomm Inc.",
+      IBM: "IBM Corp.",
+      BA: "Boeing Co.",
+      DIS: "Walt Disney Co.",
+      NKE: "Nike Inc.",
+      KO: "Coca-Cola Co.",
+      PEP: "PepsiCo Inc.",
+      COST: "Costco Wholesale",
+      XOM: "Exxon Mobil Corp.",
+      CVX: "Chevron Corp.",
+      WMT: "Walmart Inc.",
+      PFE: "Pfizer Inc.",
+      V: "Visa Inc.",
+      MA: "Mastercard Inc.",
+      JPM: "JPMorgan Chase",
+      GS: "Goldman Sachs",
+      UBER: "Uber Technologies"
+    };
+
     let stockData = [];
     const refreshInterval = 60;
     let countdown = refreshInterval;
@@ -65,10 +102,8 @@
       return arr.reduce((a,b)=>a+b,0)/arr.length;
     }
 
-    // Fetch a news snippet/title for a stock; fallbackers
     async function fetchNewsSnippet(symbol) {
       try {
-        // Attempt Yahoo search/news snippet
         const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}`;
         const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
         const res = await fetch(proxy);
@@ -77,11 +112,8 @@
         if (obj.news && obj.news.length > 0) {
           return obj.news[0].title;
         }
-      } catch(_) {
-        // fail quietly
-      }
-      // fallback: generic “No summary”
-      return "No summary available";
+      } catch (_) {}
+      return "No latest news affecting the stock behavior";
     }
 
     async function getYahooData(symbol, range="3mo") {
@@ -111,9 +143,8 @@
                 const ret = (latest - past) / past;
                 const profit = ret * budget;
                 if (label === "1W") {
-                  oneWeekLabel = `${label} → ${profit.toFixed(2)} (${(ret*100).toFixed(1)}%)`;
+                  oneWeekLabel = `${label}: $${profit.toFixed(2)} (${(ret*100).toFixed(1)}%)`;
                 }
-                // optionally, ignore extremely high outliers
                 if (profit > best.val && ret < 0.5) {
                   const sellTs = timestamps[timestamps.length - days];
                   const sellDate = new Date(sellTs * 1000).toLocaleDateString();
@@ -128,6 +159,7 @@
 
         return {
           symbol,
+          name: companyNames[symbol] || symbol,
           price: latest.toFixed(2),
           oneWeek: oneWeekLabel,
           best,
@@ -145,7 +177,6 @@
       const results = await Promise.all(promises);
       stockData = results.filter(r => r !== null);
 
-      // sort by best.val descending
       stockData.sort((a, b) => b.best.val - a.best.val);
       stockData = stockData.slice(0, 10);
       updateTable();
@@ -154,33 +185,50 @@
     function updateTable() {
       let html = `<table>
         <tr>
-          <th>Rank</th><th>Symbol</th><th>Price</th>
-          <th>1-Week Growth</th><th>Profit ($)</th><th>Best Sell (≤3M)</th><th>Trend Summary</th>
+          <th>Rank</th><th>Symbol</th><th>Company</th><th>Price</th>
+          <th>1-Week Growth</th><th>Profit ($)</th><th>Best Sell (≤3M)</th><th>Trend Summary</th><th>Chart</th>
         </tr>`;
       stockData.forEach((s, idx) => {
         const profit = s.best.val > 0 ? `$${s.best.val.toFixed(2)}` : "-";
-        const growthPct = s.best.label !== "-" ? `${s.best.pct.toFixed(1)}%` : "-";
         const sellLabel = s.best.label !== "-" ? `${s.best.label} → ${s.best.date}` : "-";
+        const canvasId = `chart-${idx}`;
         html += `<tr>
           <td>#${idx+1}</td>
           <td>${s.symbol}</td>
+          <td>${s.name}</td>
           <td>$${s.price}</td>
           <td>${s.oneWeek}</td>
           <td class="${s.best.val>=0 ? 'profit-pos':'profit-neg'}">${profit}</td>
           <td class="highlight">${sellLabel}</td>
           <td class="news">${s.news}</td>
+          <td><canvas id="${canvasId}"></canvas></td>
         </tr>`;
       });
       html += `</table>`;
       document.getElementById("stocks").innerHTML = html;
 
-      // draw mini charts
+      // draw charts
       stockData.forEach((s, idx) => {
-        const canvasId = `chart-${idx}`;
-        // Insert canvas into the cell if needed (you’d have to modify HTML to include a <td><canvas id="chart-..."></canvas></td>)
-        // For brevity, skipping chart drawing in HTML here — you can embed canvas in each row.
-        // But if you already had canvases, you'd do:
-        // new Chart(ctx, {... prices: s.prices ...});
+        const ctx = document.getElementById(`chart-${idx}`);
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: s.prices.map((_, i) => i),
+            datasets: [{
+              data: s.prices,
+              borderColor: "#4CAF50",
+              backgroundColor: "transparent",
+              tension: 0.3,
+              borderWidth: 2,
+              pointRadius: 0
+            }]
+          },
+          options: {
+            responsive: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { display: false }, y: { display: false } }
+          }
+        });
       });
     }
 
