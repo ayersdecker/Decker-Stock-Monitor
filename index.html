@@ -90,11 +90,192 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    /* 
-      same JavaScript logic as your last working version 
-      (with budget default = 0, clickable news, best sell, charts, etc.) 
-      Just drop it here unchanged. 
-    */
+    const proxy = "https://thingproxy.freeboard.io/fetch/";
+
+    const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC",
+                     "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO",
+                     "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
+
+    const companyNames = {
+      AAPL: "Apple Inc.", MSFT: "Microsoft Corp.", NVDA: "NVIDIA Corp.", AMZN: "Amazon.com Inc.",
+      TSLA: "Tesla Inc.", GOOG: "Alphabet Inc. (Google)", META: "Meta Platforms Inc.", NFLX: "Netflix Inc.",
+      AMD: "Advanced Micro Devices", INTC: "Intel Corp.", ORCL: "Oracle Corp.", PYPL: "PayPal Holdings",
+      CRM: "Salesforce Inc.", CSCO: "Cisco Systems", QCOM: "Qualcomm Inc.", IBM: "IBM Corp.",
+      BA: "Boeing Co.", DIS: "Walt Disney Co.", NKE: "Nike Inc.", KO: "Coca-Cola Co.", PEP: "PepsiCo Inc.",
+      COST: "Costco Wholesale", XOM: "Exxon Mobil Corp.", CVX: "Chevron Corp.", WMT: "Walmart Inc.",
+      PFE: "Pfizer Inc.", V: "Visa Inc.", MA: "Mastercard Inc.", JPM: "JPMorgan Chase",
+      GS: "Goldman Sachs", UBER: "Uber Technologies"
+    };
+
+    const blacklist = [
+      "AI Stocks In Buy Areas",
+      "Sector Update",
+      "Tech Stocks Gain",
+      "Market Summary",
+      "ETF",
+    ];
+
+    let stockData = [];
+    const refreshInterval = 60;
+    let countdown = refreshInterval;
+
+    function avg(arr) { return arr.reduce((a,b)=>a+b,0)/arr.length; }
+
+    async function fetchNewsSnippet(symbol) {
+      try {
+        const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}`;
+        const res = await fetch(proxy + url);
+        const obj = await res.json();
+
+        if (obj.news && obj.news.length > 0) {
+          const valid = obj.news.find(n =>
+            n.link &&
+            n.publisher &&
+            blacklist.every(bad => !n.title.includes(bad))
+          );
+          if (valid) {
+            return { title: valid.title, link: valid.link };
+          }
+        }
+      } catch (err) {
+        console.error("News fetch failed for", symbol, err);
+      }
+      return { title: "No latest news affecting the stock behavior", link: null };
+    }
+
+    async function getYahooData(symbol, range="3mo") {
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
+        const res = await fetch(proxy + url);
+        const data = await res.json();
+        const prices = data.chart.result[0].indicators.quote[0].close;
+        const timestamps = data.chart.result[0].timestamp;
+        if (!prices || prices.length < 22) return null;
+
+        const latest = prices[prices.length-1];
+        let budget = parseFloat(document.getElementById("budget").value);
+        if (isNaN(budget)) budget = 0; // default to 0
+
+        const horizons = { "1W":5, "2W":10, "3W":15, "1M":22, "3M":66 };
+        let best = { label: "-", val: 0, date: "-", pct: 0 };
+        let oneWeekLabel = "1W: $0 (0%)";
+
+        for (const [label, days] of Object.entries(horizons)) {
+          if (prices.length > days) {
+            const window = prices.slice(prices.length - days - 3, prices.length - days + 2).filter(v=>v != null);
+            if (window.length > 0) {
+              const past = avg(window);
+              if (past > 0) {
+                const ret = (latest - past) / past;
+                const profit = ret * budget;
+                if (label === "1W") {
+                  oneWeekLabel = `1W: $${profit.toFixed(2)} (${(ret*100).toFixed(1)}%)`;
+                }
+                if (profit > best.val && ret < 0.5) {
+                  const sellTs = timestamps[timestamps.length - days];
+                  const sellDate = new Date(sellTs * 1000).toLocaleDateString();
+                  best = { label, val: profit, date: sellDate, pct: ret * 100 };
+                }
+              }
+            }
+          }
+        }
+
+        const news = await fetchNewsSnippet(symbol);
+
+        return {
+          symbol,
+          name: companyNames[symbol] || symbol,
+          price: latest.toFixed(2),
+          oneWeek: oneWeekLabel,
+          best,
+          news,
+          prices
+        };
+      } catch (err) {
+        console.error("Stock fetch failed for", symbol, err);
+        return null;
+      }
+    }
+
+    async function loadStocks() {
+      document.getElementById("stocks").innerHTML = "Refreshing data...";
+      const promises = symbols.map(s => getYahooData(s));
+      const results = await Promise.all(promises);
+      stockData = results.filter(r => r !== null);
+
+      stockData.sort((a, b) => b.best.val - a.best.val);
+      stockData = stockData.slice(0, 10);
+      updateTable();
+    }
+
+    function updateTable() {
+      let html = `<table>
+        <tr>
+          <th>Rank</th><th>Symbol</th><th>Company</th><th>Price</th>
+          <th>1-Week Growth</th><th>Profit ($)</th><th>Best Sell (≤3M)</th><th>Trend Summary</th><th>Chart</th>
+        </tr>`;
+      stockData.forEach((s, idx) => {
+        const profit = `$${s.best.val.toFixed(2)}`;
+        const sellLabel = s.best.label !== "-" ? `${s.best.label} → ${s.best.date}` : "-";
+        const canvasId = `chart-${idx}`;
+        const newsHTML = s.news.link
+          ? `<a href="${s.news.link}" target="_blank">${s.news.title}</a>`
+          : s.news.title;
+
+        html += `<tr>
+          <td>#${idx+1}</td>
+          <td>${s.symbol}</td>
+          <td>${s.name}</td>
+          <td>$${s.price}</td>
+          <td>${s.oneWeek}</td>
+          <td class="${s.best.val>=0 ? 'profit-pos':'profit-neg'}">${profit}</td>
+          <td class="highlight">${sellLabel}</td>
+          <td class="news">${newsHTML}</td>
+          <td><canvas id="${canvasId}"></canvas></td>
+        </tr>`;
+      });
+      html += `</table>`;
+      document.getElementById("stocks").innerHTML = html;
+
+      // Draw charts
+      stockData.forEach((s, idx) => {
+        const ctx = document.getElementById(`chart-${idx}`);
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: s.prices.map((_, i) => i),
+            datasets: [{
+              data: s.prices,
+              borderColor: "#00ff99",
+              backgroundColor: "transparent",
+              tension: 0.3,
+              borderWidth: 2,
+              pointRadius: 0
+            }]
+          },
+          options: {
+            responsive: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { display: false }, y: { display: false } }
+          }
+        });
+      });
+    }
+
+    function startAutoRefresh() {
+      setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          loadStocks();
+          countdown = refreshInterval;
+        }
+        document.getElementById("countdown").innerText = countdown;
+      }, 1000);
+    }
+
+    loadStocks();
+    startAutoRefresh();
   </script>
 </body>
 </html>
