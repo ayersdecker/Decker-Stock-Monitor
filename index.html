@@ -61,7 +61,6 @@
                      "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO",
                      "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
 
-    // Mapping for company names
     const companyNames = {
       AAPL: "Apple Inc.",
       MSFT: "Microsoft Corp.",
@@ -96,7 +95,6 @@
       UBER: "Uber Technologies"
     };
 
-    // Keywords / phrases to ignore as "not real news"
     const blacklist = [
       "AI Stocks In Buy Areas",
       "Sector Update",
@@ -122,7 +120,6 @@
         const obj = JSON.parse(wrapped.contents);
 
         if (obj.news && obj.news.length > 0) {
-          // Find first valid article with link & no blacklisted title
           const valid = obj.news.find(n =>
             n.link &&
             n.publisher &&
@@ -148,11 +145,12 @@
         if (!prices || prices.length < 22) return null;
 
         const latest = prices[prices.length-1];
-        const budget = parseFloat(document.getElementById("budget").value) || 1000;
+        let budget = parseFloat(document.getElementById("budget").value);
+        if (isNaN(budget)) budget = 0; // start at 0
 
         const horizons = { "1W":5, "2W":10, "3W":15, "1M":22, "3M":66 };
-        let best = { label: "-", val: -Infinity, date: "", pct: 0 };
-        let oneWeekLabel = "-";
+        let best = { label: "-", val: 0, date: "-", pct: 0 };
+        let oneWeekLabel = "1W: $0 (0%)";
 
         for (const [label, days] of Object.entries(horizons)) {
           if (prices.length > days) {
@@ -163,7 +161,7 @@
                 const ret = (latest - past) / past;
                 const profit = ret * budget;
                 if (label === "1W") {
-                  oneWeekLabel = `${label}: $${profit.toFixed(2)} (${(ret*100).toFixed(1)}%)`;
+                  oneWeekLabel = `1W: $${profit.toFixed(2)} (${(ret*100).toFixed(1)}%)`;
                 }
                 if (profit > best.val && ret < 0.5) {
                   const sellTs = timestamps[timestamps.length - days];
@@ -209,7 +207,7 @@
           <th>1-Week Growth</th><th>Profit ($)</th><th>Best Sell (≤3M)</th><th>Trend Summary</th><th>Chart</th>
         </tr>`;
       stockData.forEach((s, idx) => {
-        const profit = s.best.val > 0 ? `$${s.best.val.toFixed(2)}` : "-";
+        const profit = `$${s.best.val.toFixed(2)}`;
         const sellLabel = s.best.label !== "-" ? `${s.best.label} → ${s.best.date}` : "-";
         const canvasId = `chart-${idx}`;
         const newsHTML = s.news.link
