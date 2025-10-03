@@ -2,23 +2,97 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Top 5 Weekly Stocks</title>
+  <title>Top Weekly Stocks</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
-    h1 { text-align: center; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
-    th { background: #333; color: white; }
-    .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1d2b64, #f8cdda);
+      margin: 0; 
+      padding: 0;
+      color: #333;
+    }
+    header {
+      text-align: center;
+      padding: 30px 20px;
+      color: white;
+      background: rgba(0,0,0,0.3);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 2.5rem;
+      letter-spacing: 1px;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 30px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+    }
+    .input-section {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    input {
+      padding: 10px;
+      font-size: 1rem;
+      width: 200px;
+      border: 2px solid #333;
+      border-radius: 6px;
+      text-align: center;
+      outline: none;
+      transition: 0.3s;
+    }
+    input:focus {
+      border-color: #1d2b64;
+      box-shadow: 0 0 8px rgba(29,43,100,0.5);
+    }
+    table {
+      width: 100%; 
+      border-collapse: collapse; 
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 12px 15px; 
+      border-bottom: 1px solid #ddd; 
+      text-align: center;
+    }
+    th {
+      background: #1d2b64; 
+      color: white;
+      position: sticky;
+      top: 0;
+    }
+    tr:hover {
+      background: rgba(29, 43, 100, 0.05);
+      transition: 0.2s;
+    }
+    .growth-pos { color: green; font-weight: bold; }
+    .growth-neg { color: red; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>📈 Top 5 Weekly Performing Stocks</h1>
-  <div id="stocks" class="card">Loading...</div>
+  <header>
+    <h1>📈 Top 20 Weekly Performing Stocks</h1>
+  </header>
+  
+  <div class="container">
+    <div class="input-section">
+      <label for="budget">Enter Your Investment ($): </label>
+      <input type="number" id="budget" placeholder="e.g. 5000" oninput="updateTable()">
+    </div>
+    
+    <div id="stocks">Loading...</div>
+  </div>
 
   <script>
-    const apiKey = "YOUR_ALPHA_VANTAGE_API_KEY";  // get one free at alphavantage.co
-    const symbols = ["AAPL", "MSFT", "NVDA", "AMZN", "TSLA", "GOOG", "META", "NFLX", "AMD", "INTC"];
+    const apiKey = "YOUR_ALPHA_VANTAGE_API_KEY"; 
+    const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC",
+                     "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO","PEP",
+                     "COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS"]; // sample set
+
+    let stockData = [];
 
     async function getWeeklyGrowth(symbol) {
       try {
@@ -30,7 +104,7 @@
 
         const dates = Object.keys(series).sort().reverse();
         const latest = parseFloat(series[dates[0]]["4. close"]);
-        const weekAgo = parseFloat(series[dates[5]]["4. close"]); // 5 trading days ago
+        const weekAgo = parseFloat(series[dates[5]]["4. close"]);
         const growth = ((latest - weekAgo) / weekAgo) * 100;
         
         return { symbol, latest: latest.toFixed(2), growth: growth.toFixed(2) };
@@ -42,18 +116,32 @@
 
     async function loadStocks() {
       const results = await Promise.all(symbols.map(s => getWeeklyGrowth(s)));
-      const cleanResults = results.filter(r => r !== null);
-      cleanResults.sort((a,b) => b.growth - a.growth);
-      const top5 = cleanResults.slice(0,5);
+      stockData = results.filter(r => r !== null);
+      stockData.sort((a,b) => b.growth - a.growth);
+      stockData = stockData.slice(0,20); // top 20
+      updateTable();
+    }
+
+    function updateTable() {
+      const budget = parseFloat(document.getElementById("budget").value) || 0;
+      const perStock = budget > 0 ? (budget / stockData.length).toFixed(2) : "-";
 
       let html = `<table>
-                    <tr><th>Symbol</th><th>Price</th><th>1-Week Growth</th><th>Buy Amount</th></tr>`;
-      top5.forEach(s => {
+                    <tr>
+                      <th>Symbol</th>
+                      <th>Price</th>
+                      <th>1-Week Growth</th>
+                      <th>Recommended Buy</th>
+                      <th>Projected Shares</th>
+                    </tr>`;
+      stockData.forEach(s => {
+        const shares = budget > 0 ? (perStock / s.latest).toFixed(2) : "-";
         html += `<tr>
                    <td>${s.symbol}</td>
                    <td>$${s.latest}</td>
-                   <td>${s.growth}%</td>
-                   <td>$200</td>
+                   <td class="${s.growth >= 0 ? 'growth-pos':'growth-neg'}">${s.growth}%</td>
+                   <td>${budget > 0 ? "$"+perStock : "-"}</td>
+                   <td>${shares}</td>
                  </tr>`;
       });
       html += `</table>`;
