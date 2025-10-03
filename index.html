@@ -3,85 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <title>Decker's Stock Monitor</title>
-
-  <!-- Finance themed favicon -->
-  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2331/2331941.png" type="image/png">
-
   <style>
     body {
-      font-family: 'Fira Code', Consolas, monospace;
-      background: linear-gradient(145deg, #0a0f0f, #000000);
-      margin: 0; padding: 0; color: #e0e0e0;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: linear-gradient(135deg, #1c1c1c, #0f2027, #203a43);
+      margin: 0; padding: 0; color: #fff;
     }
     header {
       text-align: center; padding: 25px 15px;
-      background: #0d1117;
-      border-bottom: 2px solid #00ff99;
-      box-shadow: 0 0 15px rgba(0, 255, 153, 0.2);
+      background: rgba(0,0,0,0.6);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.5);
     }
-    header h1 { margin: 0; font-size: 2.5rem; color: #00ff99; text-shadow: 0 0 5px #00ff99; }
-    header p { margin: 5px 0 0; font-size: 1rem; color: #aaa; }
-
+    header h1 { margin: 0; font-size: 2.3rem; color: #ffeb3b; }
+    header p { margin: 5px 0 0; font-size: 1rem; color: #bbb; }
     .container {
       max-width: 1350px; margin: 30px auto; padding: 20px;
-      background: #0d1117;
-      border-radius: 10px;
-      box-shadow: 0 0 20px rgba(0,255,153,0.15);
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
     }
-
     .input-section { text-align: center; margin-bottom: 20px; }
     input {
-      padding: 10px; font-size: 1rem;
-      border-radius: 5px; border: 1px solid #33ccff; outline: none;
-      background: #0a0f0f; color: #e0e0e0;
-      box-shadow: inset 0 0 10px rgba(51,204,255,0.2);
+      padding: 12px; font-size: 1rem;
+      border-radius: 6px; border: none; outline: none;
     }
-
-    table { 
-      width: 100%; border-collapse: collapse; 
-      margin-top: 20px; font-size: 0.9rem;
-    }
-    th, td { 
-      padding: 12px; text-align: center; 
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-    th { 
-      background: #111; 
-      color: #33ccff; 
-      text-transform: uppercase;
-      font-size: 0.8rem;
-      letter-spacing: 1px;
-    }
-    tr { transition: background 0.2s; }
-    tr:hover { background: rgba(0,255,153,0.08); }
-
-    .profit-pos { color: #00ff99; font-weight: bold; text-shadow: 0 0 5px #00ff99; }
-    .profit-neg { color: #ff4d4d; font-weight: bold; text-shadow: 0 0 5px #ff4d4d; }
-    .highlight { background: rgba(51,204,255,0.15); font-weight: bold; }
-    td.news { text-align: left; max-width: 280px; font-size: 0.85rem; color: #ddd; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
+    th, td { padding: 12px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); }
+    th { background: rgba(0,0,0,0.6); }
+    tr:hover { background: rgba(255,255,255,0.1); transition: 0.2s; }
+    .profit-pos { color: #4CAF50; font-weight: bold; }
+    .profit-neg { color: #FF5252; font-weight: bold; }
+    .highlight { background: rgba(255,215,0,0.2); font-weight: bold; }
+    td.news { text-align: left; max-width: 280px; font-size: 0.85rem; }
     canvas { width: 120px !important; height: 40px !important; }
-
-    a { color: #33ccff; text-decoration: none; }
+    a { color: #4da6ff; text-decoration: none; }
     a:hover { text-decoration: underline; }
-
-    .refresh-timer {
-      margin-top: 10px;
-      text-align: center;
-      font-size: 0.8rem;
-      color: #aaa;
-    }
   </style>
 </head>
 <body>
   <header>
     <h1>📊 Decker's Stock Monitor</h1>
-    <p>Top 10 fast-profit stocks (≤3 months, tech-console style)</p>
+    <p>Top 10 fast-profit stocks (≤3 months, with 1-week growth, news & charts)</p>
   </header>
 
   <div class="container">
     <div class="input-section">
       <label for="budget">💰 Investment Budget ($): </label>
-      <input type="number" id="budget" placeholder="0" oninput="loadStocks()">
+      <input type="number" id="budget" placeholder="5000" oninput="loadStocks()">
     </div>
 
     <div id="stocks">Loading...</div>
@@ -90,21 +57,42 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    const proxy = "https://api.allorigins.win/get?url=";
-
     const symbols = ["AAPL","MSFT","NVDA","AMZN","TSLA","GOOG","META","NFLX","AMD","INTC",
                      "ORCL","PYPL","CRM","CSCO","QCOM","IBM","BA","DIS","NKE","KO",
                      "PEP","COST","XOM","CVX","WMT","PFE","V","MA","JPM","GS","UBER"];
 
     const companyNames = {
-      AAPL: "Apple Inc.", MSFT: "Microsoft Corp.", NVDA: "NVIDIA Corp.", AMZN: "Amazon.com Inc.",
-      TSLA: "Tesla Inc.", GOOG: "Alphabet Inc. (Google)", META: "Meta Platforms Inc.", NFLX: "Netflix Inc.",
-      AMD: "Advanced Micro Devices", INTC: "Intel Corp.", ORCL: "Oracle Corp.", PYPL: "PayPal Holdings",
-      CRM: "Salesforce Inc.", CSCO: "Cisco Systems", QCOM: "Qualcomm Inc.", IBM: "IBM Corp.",
-      BA: "Boeing Co.", DIS: "Walt Disney Co.", NKE: "Nike Inc.", KO: "Coca-Cola Co.", PEP: "PepsiCo Inc.",
-      COST: "Costco Wholesale", XOM: "Exxon Mobil Corp.", CVX: "Chevron Corp.", WMT: "Walmart Inc.",
-      PFE: "Pfizer Inc.", V: "Visa Inc.", MA: "Mastercard Inc.", JPM: "JPMorgan Chase",
-      GS: "Goldman Sachs", UBER: "Uber Technologies"
+      AAPL: "Apple Inc.",
+      MSFT: "Microsoft Corp.",
+      NVDA: "NVIDIA Corp.",
+      AMZN: "Amazon.com Inc.",
+      TSLA: "Tesla Inc.",
+      GOOG: "Alphabet Inc. (Google)",
+      META: "Meta Platforms Inc.",
+      NFLX: "Netflix Inc.",
+      AMD: "Advanced Micro Devices",
+      INTC: "Intel Corp.",
+      ORCL: "Oracle Corp.",
+      PYPL: "PayPal Holdings",
+      CRM: "Salesforce Inc.",
+      CSCO: "Cisco Systems",
+      QCOM: "Qualcomm Inc.",
+      IBM: "IBM Corp.",
+      BA: "Boeing Co.",
+      DIS: "Walt Disney Co.",
+      NKE: "Nike Inc.",
+      KO: "Coca-Cola Co.",
+      PEP: "PepsiCo Inc.",
+      COST: "Costco Wholesale",
+      XOM: "Exxon Mobil Corp.",
+      CVX: "Chevron Corp.",
+      WMT: "Walmart Inc.",
+      PFE: "Pfizer Inc.",
+      V: "Visa Inc.",
+      MA: "Mastercard Inc.",
+      JPM: "JPMorgan Chase",
+      GS: "Goldman Sachs",
+      UBER: "Uber Technologies"
     };
 
     const blacklist = [
@@ -119,12 +107,15 @@
     const refreshInterval = 60;
     let countdown = refreshInterval;
 
-    function avg(arr) { return arr.reduce((a,b)=>a+b,0)/arr.length; }
+    function avg(arr) {
+      return arr.reduce((a,b)=>a+b,0)/arr.length;
+    }
 
     async function fetchNewsSnippet(symbol) {
       try {
         const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}`;
-        const res = await fetch(proxy + encodeURIComponent(url));
+        const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxy);
         const wrapped = await res.json();
         const obj = JSON.parse(wrapped.contents);
 
@@ -138,16 +129,15 @@
             return { title: valid.title, link: valid.link };
           }
         }
-      } catch (err) {
-        console.error("News fetch failed for", symbol, err);
-      }
+      } catch (_) {}
       return { title: "No latest news affecting the stock behavior", link: null };
     }
 
     async function getYahooData(symbol, range="3mo") {
       try {
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
-        const res = await fetch(proxy + encodeURIComponent(url));
+        const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxy);
         const wrapped = await res.json();
         const data = JSON.parse(wrapped.contents);
         const prices = data.chart.result[0].indicators.quote[0].close;
@@ -156,7 +146,7 @@
 
         const latest = prices[prices.length-1];
         let budget = parseFloat(document.getElementById("budget").value);
-        if (isNaN(budget)) budget = 0;
+        if (isNaN(budget)) budget = 0; // start at 0
 
         const horizons = { "1W":5, "2W":10, "3W":15, "1M":22, "3M":66 };
         let best = { label: "-", val: 0, date: "-", pct: 0 };
@@ -194,8 +184,7 @@
           news,
           prices
         };
-      } catch (err) {
-        console.error("Stock fetch failed for", symbol, err);
+      } catch (_) {
         return null;
       }
     }
@@ -240,7 +229,7 @@
       html += `</table>`;
       document.getElementById("stocks").innerHTML = html;
 
-      // Draw charts
+      // draw charts
       stockData.forEach((s, idx) => {
         const ctx = document.getElementById(`chart-${idx}`);
         new Chart(ctx, {
@@ -249,7 +238,7 @@
             labels: s.prices.map((_, i) => i),
             datasets: [{
               data: s.prices,
-              borderColor: "#00ff99",
+              borderColor: "#4CAF50",
               backgroundColor: "transparent",
               tension: 0.3,
               borderWidth: 2,
