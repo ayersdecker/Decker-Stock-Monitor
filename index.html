@@ -17,7 +17,7 @@
     header h1 { margin: 0; font-size: 2.3rem; color: #ffeb3b; }
     header p { margin: 5px 0 0; font-size: 1rem; color: #bbb; }
     .container {
-      max-width: 1300px; margin: 30px auto; padding: 20px;
+      max-width: 1350px; margin: 30px auto; padding: 20px;
       background: rgba(255,255,255,0.05);
       border-radius: 15px; box-shadow: 0 6px 20px rgba(0,0,0,0.4);
     }
@@ -33,8 +33,10 @@
     .profit-pos { color: #4CAF50; font-weight: bold; }
     .profit-neg { color: #FF5252; font-weight: bold; }
     .highlight { background: rgba(255,215,0,0.2); font-weight: bold; }
-    td.news { text-align: left; max-width: 250px; font-size: 0.85rem; }
+    td.news { text-align: left; max-width: 280px; font-size: 0.85rem; }
     canvas { width: 120px !important; height: 40px !important; }
+    a { color: #4da6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -94,6 +96,15 @@
       UBER: "Uber Technologies"
     };
 
+    // Keywords / phrases to ignore as "not real news"
+    const blacklist = [
+      "AI Stocks In Buy Areas",
+      "Sector Update",
+      "Tech Stocks Gain",
+      "Market Summary",
+      "ETF",
+    ];
+
     let stockData = [];
     const refreshInterval = 60;
     let countdown = refreshInterval;
@@ -109,11 +120,20 @@
         const res = await fetch(proxy);
         const wrapped = await res.json();
         const obj = JSON.parse(wrapped.contents);
+
         if (obj.news && obj.news.length > 0) {
-          return obj.news[0].title;
+          // Find first valid article with link & no blacklisted title
+          const valid = obj.news.find(n =>
+            n.link &&
+            n.publisher &&
+            blacklist.every(bad => !n.title.includes(bad))
+          );
+          if (valid) {
+            return { title: valid.title, link: valid.link };
+          }
         }
       } catch (_) {}
-      return "No latest news affecting the stock behavior";
+      return { title: "No latest news affecting the stock behavior", link: null };
     }
 
     async function getYahooData(symbol, range="3mo") {
@@ -192,6 +212,10 @@
         const profit = s.best.val > 0 ? `$${s.best.val.toFixed(2)}` : "-";
         const sellLabel = s.best.label !== "-" ? `${s.best.label} → ${s.best.date}` : "-";
         const canvasId = `chart-${idx}`;
+        const newsHTML = s.news.link
+          ? `<a href="${s.news.link}" target="_blank">${s.news.title}</a>`
+          : s.news.title;
+
         html += `<tr>
           <td>#${idx+1}</td>
           <td>${s.symbol}</td>
@@ -200,7 +224,7 @@
           <td>${s.oneWeek}</td>
           <td class="${s.best.val>=0 ? 'profit-pos':'profit-neg'}">${profit}</td>
           <td class="highlight">${sellLabel}</td>
-          <td class="news">${s.news}</td>
+          <td class="news">${newsHTML}</td>
           <td><canvas id="${canvasId}"></canvas></td>
         </tr>`;
       });
